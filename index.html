@@ -1624,20 +1624,46 @@ async function saveOrder() {
 
   const order = { id:orderId, num, note, deliveryType:T.delivery, createdAt:now, status:'active', items };
 
-  // まずGASに保存してから画面に反映（失敗時はロールバック）
+  // GASに分割して保存（注文ヘッダー→item個別→step個別）
   isSaving = true;
   closeOverlay('ov-order');
   toast('⏳ 受付登録中...');
-  const saved = await api('saveOrder', { order: { ...order, items: items.map(it=>({...it})) } });
-  isSaving = false;
 
-  if (!saved) {
-    toast('❌ 登録に失敗しました。もう一度お試しください');
-    return;
+  try {
+    // 1. 注文ヘッダーを保存（itemsなし）
+    const headerSaved = await api('saveOrderHeader', {
+      id: orderId, num, note,
+      deliveryType: T.delivery,
+      createdAt: now
+    });
+    if (!headerSaved) throw new Error('ヘッダー保存失敗');
+
+    // 2. itemを1つずつ保存
+    for (const it of items) {
+      const itemSaved = await api('saveOrderItem', {
+        id: it.id, orderId, pid: it.pid,
+        idx: it.idx, totalOf: it.totalOf,
+        skipBinarize: false, skipDesign: false,
+        price: it.price, paymentMethod: it.paymentMethod
+      });
+      if (!itemSaved) throw new Error('アイテム保存失敗');
+
+      // 3. stepを1つずつ保存
+      for (const sd of it.stepDefs) {
+        await api('saveOrderStep', {
+          id: sd.id, itemId: it.id, stepIndex: sd.stepIndex
+        });
+      }
+    }
+
+    isSaving = false;
+    S.orders.push(order);
+    renderOrders(); updateWait();
+    toast(`✅ #${String(num).padStart(3,'0')} 受付しました`);
+  } catch(e) {
+    isSaving = false;
+    toast('❌ 登録に失敗しました: ' + e.message);
   }
-  S.orders.push(order);
-  renderOrders(); updateWait();
-  toast(`✅ #${String(num).padStart(3,'0')} 受付しました`);
 }
 
 // ================================================================
