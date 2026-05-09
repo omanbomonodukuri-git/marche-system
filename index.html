@@ -986,7 +986,17 @@ async function loadAll() {
   const res = await api('getAll');
   if (!res) return;
   S.orders   = res.orders   || [];
-  S.products = res.products.length ? res.products : DEFAULT_PRODUCTS;
+  // GASから返ってくるdone値(0/1)をbooleanに正規化
+  S.orders.forEach(o => {
+    (o.items||[]).forEach(it => {
+      it.skipBinarize = it.skipBinarize == 1 || it.skipBinarize === true;
+      it.skipDesign   = it.skipDesign   == 1 || it.skipDesign   === true;
+      (it.steps||[]).forEach(s => {
+        s.done = s.done == 1 || s.done === true;
+      });
+    });
+  });
+  S.products = (res.products && res.products.length) ? res.products : DEFAULT_PRODUCTS;
   // parse stepTimes JSON
   S.products.forEach(p => {
     if (typeof p.stepTimesJson === 'string') {
@@ -1363,6 +1373,7 @@ function renderMaster() {
 //  STEP TAP
 // ================================================================
 async function tapStep(btn) {
+  if (isSaving) { toast('処理中です。少し待ってください'); return; }
   const oid   = btn.dataset.oid;
   const iid   = btn.dataset.iid;
   const sdid  = btn.dataset.sdid;
@@ -1580,12 +1591,21 @@ async function saveOrder() {
   });
 
   const order = { id:orderId, num, note, deliveryType:T.delivery, createdAt:now, status:'active', items };
-  S.orders.push(order);
-  closeOverlay('ov-order');
-  renderOrders(); updateWait();
 
-  await api('saveOrder', { order: { ...order, items: items.map(it=>({...it})) } });
-  toast(`📋 #${String(num).padStart(3,'0')} 受付しました`);
+  // まずGASに保存してから画面に反映（失敗時はロールバック）
+  isSaving = true;
+  closeOverlay('ov-order');
+  toast('⏳ 受付登録中...');
+  const saved = await api('saveOrder', { order: { ...order, items: items.map(it=>({...it})) } });
+  isSaving = false;
+
+  if (!saved) {
+    toast('❌ 登録に失敗しました。もう一度お試しください');
+    return;
+  }
+  S.orders.push(order);
+  renderOrders(); updateWait();
+  toast(`✅ #${String(num).padStart(3,'0')} 受付しました`);
 }
 
 // ================================================================
@@ -1852,19 +1872,22 @@ function elapsedStr(d) {
 // ================================================================
 //  起動処理: 自動ログイン + 定期同期
 // ================================================================
+let isSaving = false; // 保存中フラグ
+
 (async function init() {
   const ok = await tryAutoLogin();
   if (ok) {
     await showApp();
   }
-  // 30秒ごとにデータ同期（注文管理タブが開いているとき）
+  // 2分ごとにデータ同期（保存中は実行しない）
   setInterval(async () => {
     if (!token) return;
+    if (isSaving) return; // 保存中はスキップ
     const activeTab = document.querySelector('.tab.on');
     if (activeTab && activeTab.dataset.tab === 'orders') {
       await loadAll();
     }
-  }, 30000);
+  }, 120000);
 })();
 </script>
 </body>
