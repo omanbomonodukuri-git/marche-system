@@ -912,23 +912,58 @@ let T = {
 };
 
 // ================================================================
-//  GAS API — GETのみ使用（CORS対策）
-//  データはJSONエンコードしてdパラメータで送信
+//  GAS API — URLが長い場合はiframeを使わずに分割GET送信
+//  短いリクエスト: 通常GET
+//  長いリクエスト: GASの専用エンドポイントに小さく分割
 // ================================================================
 async function api(action, data={}) {
   showLoading(true);
   try {
-    // authはpasswordを直接パラメータで送る
     let params;
     if (action === 'auth') {
       params = new URLSearchParams({ action, password: data.password || '' });
-    } else {
-      params = new URLSearchParams({ action, token, d: JSON.stringify(data) });
+      const r = await fetch(`${GAS_URL}?${params}`);
+      const j = await r.json();
+      if (!j.ok) throw new Error(j.error);
+      return j.data;
     }
-    const r = await fetch(`${GAS_URL}?${params}`);
-    const j = await r.json();
-    if (!j.ok) throw new Error(j.error);
-    return j.data;
+
+    // データをJSON文字列化
+    const dataStr = JSON.stringify(data);
+    // GASのURL制限(8192bytes)に収まるよう分割
+    const MAX = 1800; // 安全マージンを取る
+    
+    if (dataStr.length <= MAX) {
+      // 短い場合はそのままGET
+      params = new URLSearchParams({ action, token, d: dataStr });
+      const r = await fetch(`${GAS_URL}?${params}`);
+      const j = await r.json();
+      if (!j.ok) throw new Error(j.error);
+      return j.data;
+    } else {
+      // 長い場合: 分割して送信
+      const sid = uid();
+      const chunks = [];
+      for (let i = 0; i < dataStr.length; i += MAX) {
+        chunks.push(dataStr.slice(i, i + MAX));
+      }
+      // 最後のチャンク以外を送信
+      for (let i = 0; i < chunks.length - 1; i++) {
+        const p = new URLSearchParams({ action: 'storeChunk', token, sid, ci: i, d: chunks[i] });
+        await fetch(`${GAS_URL}?${p}`);
+      }
+      // 最後のチャンクで実行
+      const p = new URLSearchParams({ 
+        action, token, sid, 
+        ci: chunks.length - 1, 
+        total: chunks.length,
+        d: chunks[chunks.length - 1]
+      });
+      const r = await fetch(`${GAS_URL}?${p}`);
+      const j = await r.json();
+      if (!j.ok) throw new Error(j.error);
+      return j.data;
+    }
   } catch(e) {
     toast('❌ ' + e.message);
     return null;
