@@ -34,7 +34,7 @@
   --cs4: #48b07a; --cs5: #48c4c8;
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-html{font-size:14px}
+html{font-size:16px}
 body{
   background:var(--bg);color:var(--cream);
   font-family:'Noto Sans JP',sans-serif;
@@ -87,7 +87,7 @@ body{
 }
 .hdr-logo{
   font-family:'Zen Kaku Gothic New',sans-serif;
-  font-size:15px;font-weight:900;color:var(--gold);letter-spacing:.06em;flex-shrink:0;
+  font-size:17px;font-weight:900;color:var(--gold);letter-spacing:.06em;flex-shrink:0;
 }
 .hdr-clock{
   font-family:'Zen Kaku Gothic New',sans-serif;
@@ -96,10 +96,10 @@ body{
 .hdr-pills{display:flex;gap:6px;margin-left:auto;flex-wrap:wrap}
 .pill{
   background:var(--s2);border:1px solid var(--border);
-  border-radius:16px;padding:3px 10px;font-size:11px;color:var(--creamd);
+  border-radius:16px;padding:4px 12px;font-size:13px;color:var(--creamd);
   display:flex;align-items:center;gap:4px;
 }
-.pill b{color:var(--gold);font-size:14px}
+.pill b{color:var(--gold);font-size:16px}
 
 /* ================================================================
    WAIT BAR
@@ -144,7 +144,7 @@ body{
 }
 .tabs::-webkit-scrollbar{display:none}
 .tab{
-  padding:9px 14px;font-size:12px;font-weight:700;color:var(--creamd);
+  padding:11px 16px;font-size:15px;font-weight:700;color:var(--creamd);
   border-bottom:3px solid transparent;white-space:nowrap;cursor:pointer;
   letter-spacing:.04em;transition:color .2s,border-color .2s;flex-shrink:0;
 }
@@ -197,15 +197,15 @@ body{
 .badge-sd{background:rgba(200,168,74,.15);color:var(--gold)}
 .badge-sh{background:rgba(72,136,200,.15);color:var(--blue)}
 .och-info{flex:1;min-width:0}
-.och-note{font-size:11px;color:var(--creamd);margin-top:1px;word-break:break-all}
-.och-times{text-align:right;flex-shrink:0;font-size:11px;line-height:1.7}
+.och-note{font-size:14px;color:var(--creamd);margin-top:1px;word-break:break-all}
+.och-times{text-align:right;flex-shrink:0;font-size:14px;line-height:1.7}
 .och-elapsed{color:var(--orange);font-weight:600}
 .och-eta{color:var(--gold);font-weight:700}
-.och-eta-time{color:var(--teal);font-weight:700;font-size:12px}
+.och-eta-time{color:var(--teal);font-weight:700;font-size:15px}
 .och-actions{display:flex;gap:5px;padding:5px 10px;border-top:1px solid var(--border);justify-content:flex-end}
 .act-btn{
   background:var(--s2);border:1px solid var(--border);
-  border-radius:6px;padding:5px 10px;font-size:11px;color:var(--creamd);
+  border-radius:6px;padding:8px 14px;font-size:14px;color:var(--creamd);
   cursor:pointer;touch-action:manipulation;transition:all .1s;
 }
 .act-btn:active{background:var(--s3);transform:scale(.95)}
@@ -217,63 +217,56 @@ body{
 }
 .irow:last-of-type{border-bottom:none}
 .ihead{display:flex;align-items:center;gap:7px;margin-bottom:7px}
-.iname{flex:1;font-size:13px;font-weight:700}
-.iname.done-item{color:var(--creamd);text-decoration:line-through}
+.iname{flex:1;font-size:16px;font-weight:700}
+.iname.done-item{color:var(--creamd);text-decoration:line-through;font-size:16px}
 .ibadges{display:flex;gap:4px;flex-wrap:wrap}
 .ibadge{
   font-size:9px;font-weight:700;border-radius:3px;padding:2px 5px;
 }
 .ib-skip{background:rgba(72,176,122,.12);color:var(--green)}
 .ib-pay{background:rgba(200,168,74,.12);color:var(--gold)}
-.imins{font-size:10px;color:var(--creamd)}
-.iprice{font-size:11px;color:var(--gold);font-weight:700}
+.imins{font-size:13px;color:var(--creamd)}
+.iprice{font-size:14px;color:var(--gold);font-weight:700}
 
 /* step row */
-.steps{display:grid;grid-template-columns:repeat(6,1fr);gap:3px}
+.steps{display:grid;grid-template-columns:repeat(6,1fr);gap:4px}
 .sbtn{
-  border:1px solid var(--border);background:var(--s3);
-  border-radius:7px;height:42px;
-  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;
+  border:1px solid var(--border);background:var(--s2);
+  border-radius:8px;height:52px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
   cursor:pointer;touch-action:manipulation;
-  transition:transform .1s,background .15s;position:relative;
+  transition:transform .1s,background .15s,border-color .15s;position:relative;
 }
 .sbtn:active{transform:scale(.91)}
-.sbtn-skip{opacity:.35;pointer-events:none}
-.sbtn-icon{font-size:13px;line-height:1}
-.sbtn-lbl{font-size:8.5px;color:var(--creamd);line-height:1}
-.sbtn-who{font-size:7.5px;font-weight:700;line-height:1}
+.sbtn-skip{opacity:.2;pointer-events:none}
+.sbtn-icon{display:none}
+.sbtn-lbl{font-size:12px;font-weight:700;color:var(--creamd);line-height:1;letter-spacing:.02em}
+.sbtn-who{font-size:10px;font-weight:700;color:var(--creamd);line-height:1}
 
-.sbtn.s-done{background:var(--s2)}
+/* done: 薄いグレーのみ・色なし */
+.sbtn.s-done{background:var(--s2);border-color:var(--border)}
+.sbtn.s-done .sbtn-lbl{color:var(--s4)}
+.sbtn.s-done .sbtn-who{color:var(--s4)}
 .sbtn.s-done::after{
-  content:'✓';position:absolute;top:2px;right:3px;font-size:8px;color:var(--green);
-}
-.sbtn.s-next{animation:puls 2s infinite}
-@keyframes puls{
-  0%,100%{box-shadow:0 0 0 0 rgba(200,168,74,.12)}
-  50%{box-shadow:0 0 0 4px rgba(200,168,74,.06)}
+  content:'✓';position:absolute;top:3px;right:4px;font-size:9px;color:var(--s4);
 }
 
-/* step color variants */
-.sbtn[data-s="0"].s-done{border-color:rgba(72,136,200,.35)}
-.sbtn[data-s="1"].s-done{border-color:rgba(200,72,168,.35)}
-.sbtn[data-s="2"].s-done{border-color:rgba(200,168,74,.35)}
-.sbtn[data-s="3"].s-done{border-color:rgba(200,124,72,.35)}
-.sbtn[data-s="4"].s-done{border-color:rgba(72,176,122,.35)}
-.sbtn[data-s="5"].s-done{border-color:rgba(72,196,200,.35)}
+/* next (進行中) だけ色をつける */
+.sbtn.s-next .sbtn-lbl{font-weight:900}
+.sbtn.s-next .sbtn-who{font-weight:900}
 
-.sbtn[data-s="0"].s-next{background:rgba(72,136,200,.14);border-color:rgba(72,136,200,.5)}
-.sbtn[data-s="1"].s-next{background:rgba(200,72,168,.14);border-color:rgba(200,72,168,.5)}
-.sbtn[data-s="2"].s-next{background:rgba(200,168,74,.14);border-color:rgba(200,168,74,.5)}
-.sbtn[data-s="3"].s-next{background:rgba(200,124,72,.14);border-color:rgba(200,124,72,.5)}
-.sbtn[data-s="4"].s-next{background:rgba(72,176,122,.14);border-color:rgba(72,176,122,.5)}
-.sbtn[data-s="5"].s-next{background:rgba(72,196,200,.14);border-color:rgba(72,196,200,.5)}
-
-.sbtn[data-s="0"] .sbtn-who{color:var(--cs0)}
-.sbtn[data-s="1"] .sbtn-who{color:var(--cs1)}
-.sbtn[data-s="2"] .sbtn-who{color:var(--cs2)}
-.sbtn[data-s="3"] .sbtn-who{color:var(--cs3)}
-.sbtn[data-s="4"] .sbtn-who{color:var(--cs4)}
-.sbtn[data-s="5"] .sbtn-who{color:var(--cs5)}
+.sbtn[data-s="0"].s-next{background:rgba(72,136,200,.2);border-color:rgba(72,136,200,.7)}
+.sbtn[data-s="0"].s-next .sbtn-lbl,.sbtn[data-s="0"].s-next .sbtn-who{color:var(--cs0)}
+.sbtn[data-s="1"].s-next{background:rgba(200,72,168,.2);border-color:rgba(200,72,168,.7)}
+.sbtn[data-s="1"].s-next .sbtn-lbl,.sbtn[data-s="1"].s-next .sbtn-who{color:var(--cs1)}
+.sbtn[data-s="2"].s-next{background:rgba(200,168,74,.2);border-color:rgba(200,168,74,.7)}
+.sbtn[data-s="2"].s-next .sbtn-lbl,.sbtn[data-s="2"].s-next .sbtn-who{color:var(--cs2)}
+.sbtn[data-s="3"].s-next{background:rgba(200,124,72,.2);border-color:rgba(200,124,72,.7)}
+.sbtn[data-s="3"].s-next .sbtn-lbl,.sbtn[data-s="3"].s-next .sbtn-who{color:var(--cs3)}
+.sbtn[data-s="4"].s-next{background:rgba(72,176,122,.2);border-color:rgba(72,176,122,.7)}
+.sbtn[data-s="4"].s-next .sbtn-lbl,.sbtn[data-s="4"].s-next .sbtn-who{color:var(--cs4)}
+.sbtn[data-s="5"].s-next{background:rgba(72,196,200,.2);border-color:rgba(72,196,200,.7)}
+.sbtn[data-s="5"].s-next .sbtn-lbl,.sbtn[data-s="5"].s-next .sbtn-who{color:var(--cs5)}
 
 /* ================================================================
    HISTORY / CALENDAR
@@ -333,8 +326,8 @@ body{
 .hcard-ship{
   background:rgba(72,136,200,.12);border-color:rgba(72,136,200,.3);color:var(--blue);
 }
-.hcard-num{font-size:14px;font-weight:700}
-.hcard-items{font-size:11px;color:var(--creamd);margin-top:2px}
+.hcard-num{font-size:16px;font-weight:700}
+.hcard-items{font-size:13px;color:var(--creamd);margin-top:2px}
 .hcard-wait{font-size:10px;color:var(--orange);margin-top:2px}
 .hcard-meta{text-align:right;margin-left:auto;flex-shrink:0}
 .hcard-time{font-size:12px;color:var(--gold);font-weight:700}
@@ -948,7 +941,7 @@ async function api(action, data={}) {
 }
 
 // ================================================================
-//  AUTH
+//  AUTH — localStorageでその日はログイン維持
 // ================================================================
 document.getElementById('pw-btn').addEventListener('click', doLogin);
 document.getElementById('pw-input').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
@@ -959,6 +952,27 @@ async function doLogin() {
   const res = await api('auth', { password: pw });
   if (!res) { document.getElementById('login-err').style.display='block'; return; }
   token = res.token;
+  // 当日23:59まで有効なトークンをlocalStorageに保存
+  const today = new Date(); today.setHours(23,59,59,999);
+  localStorage.setItem('mb_token', token);
+  localStorage.setItem('mb_token_exp', today.getTime().toString());
+  showApp();
+}
+
+async function tryAutoLogin() {
+  const saved    = localStorage.getItem('mb_token');
+  const expStr   = localStorage.getItem('mb_token_exp');
+  if (!saved || !expStr) return false;
+  if (Date.now() > parseInt(expStr)) {
+    localStorage.removeItem('mb_token');
+    localStorage.removeItem('mb_token_exp');
+    return false;
+  }
+  token = saved;
+  return true;
+}
+
+async function showApp() {
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('app').style.display = 'block';
   await loadAll();
@@ -1834,6 +1848,24 @@ function elapsedStr(d) {
   const m = Math.floor((Date.now()-new Date(d))/60000);
   return m<60?`${m}分経過`:`${Math.floor(m/60)}時間${m%60}分経過`;
 }
+
+// ================================================================
+//  起動処理: 自動ログイン + 定期同期
+// ================================================================
+(async function init() {
+  const ok = await tryAutoLogin();
+  if (ok) {
+    await showApp();
+  }
+  // 30秒ごとにデータ同期（注文管理タブが開いているとき）
+  setInterval(async () => {
+    if (!token) return;
+    const activeTab = document.querySelector('.tab.on');
+    if (activeTab && activeTab.dataset.tab === 'orders') {
+      await loadAll();
+    }
+  }, 30000);
+})();
 </script>
 </body>
 </html>
