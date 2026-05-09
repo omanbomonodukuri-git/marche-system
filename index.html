@@ -1,0 +1,1839 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>🔆 おまんぼさん</title>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@700;900&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+/* ================================================================
+   DESIGN TOKENS
+================================================================ */
+:root {
+  --bg:     #0d0c0a;
+  --s1:     #161412;
+  --s2:     #1e1c19;
+  --s3:     #272420;
+  --s4:     #312e28;
+  --border: #2a2722;
+  --gold:   #c8a84a;
+  --goldl:  #e8cc70;
+  --goldd:  #5e4e1c;
+  --cream:  #ede0c8;
+  --creamd: #7a6f5c;
+  --red:    #c84848;
+  --green:  #48b07a;
+  --blue:   #4888c8;
+  --orange: #c87c48;
+  --purple: #9848c8;
+  --teal:   #48c4c8;
+  --pink:   #c848a8;
+  /* step colors */
+  --cs0: #4888c8; --cs1: #c848a8;
+  --cs2: #c8a84a; --cs3: #c87c48;
+  --cs4: #48b07a; --cs5: #48c4c8;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{font-size:14px}
+body{
+  background:var(--bg);color:var(--cream);
+  font-family:'Noto Sans JP',sans-serif;
+  min-height:100vh;-webkit-tap-highlight-color:transparent;
+  overflow-x:hidden;
+}
+
+/* ================================================================
+   LOGIN
+================================================================ */
+#login-screen{
+  position:fixed;inset:0;background:var(--bg);
+  display:flex;align-items:center;justify-content:center;
+  z-index:1000;flex-direction:column;gap:20px;padding:24px;
+}
+.login-logo{
+  font-family:'Zen Kaku Gothic New',sans-serif;
+  font-size:26px;font-weight:900;color:var(--gold);letter-spacing:.1em;
+}
+.login-sub{font-size:12px;color:var(--creamd);margin-top:4px;text-align:center}
+.login-box{
+  background:var(--s1);border:1px solid var(--border);
+  border-radius:16px;padding:24px 20px;width:100%;max-width:360px;
+}
+.login-label{font-size:11px;color:var(--creamd);font-weight:700;letter-spacing:.08em;margin-bottom:8px}
+.login-input{
+  width:100%;background:var(--s2);border:1px solid var(--border);
+  border-radius:8px;padding:13px 14px;font-size:18px;
+  color:var(--cream);outline:none;font-family:'Zen Kaku Gothic New',sans-serif;
+  text-align:center;letter-spacing:.2em;
+}
+.login-input:focus{border-color:var(--goldd)}
+.login-btn{
+  width:100%;margin-top:14px;background:var(--gold);color:var(--bg);
+  border:none;border-radius:10px;padding:14px;
+  font-family:'Zen Kaku Gothic New',sans-serif;
+  font-size:15px;font-weight:900;letter-spacing:.08em;cursor:pointer;
+  transition:background .15s,transform .1s;
+}
+.login-btn:active{background:var(--goldl);transform:scale(.97)}
+.login-err{font-size:13px;color:var(--red);text-align:center;display:none}
+
+/* ================================================================
+   HEADER
+================================================================ */
+.hdr{
+  position:sticky;top:0;z-index:80;
+  background:var(--s1);border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:10px;padding:9px 14px;
+}
+.hdr-logo{
+  font-family:'Zen Kaku Gothic New',sans-serif;
+  font-size:15px;font-weight:900;color:var(--gold);letter-spacing:.06em;flex-shrink:0;
+}
+.hdr-clock{
+  font-family:'Zen Kaku Gothic New',sans-serif;
+  font-size:22px;font-weight:900;color:var(--cream);
+}
+.hdr-pills{display:flex;gap:6px;margin-left:auto;flex-wrap:wrap}
+.pill{
+  background:var(--s2);border:1px solid var(--border);
+  border-radius:16px;padding:3px 10px;font-size:11px;color:var(--creamd);
+  display:flex;align-items:center;gap:4px;
+}
+.pill b{color:var(--gold);font-size:14px}
+
+/* ================================================================
+   WAIT BAR
+================================================================ */
+.wbar{
+  background:var(--s1);border-bottom:1px solid var(--border);
+  padding:9px 14px;display:flex;align-items:center;gap:12px;
+}
+.wbar-label{font-size:10px;color:var(--creamd);line-height:1.4}
+.wbar-num{
+  font-family:'Zen Kaku Gothic New',sans-serif;
+  font-size:28px;font-weight:900;color:var(--gold);line-height:1;
+}
+.wbar-num.warn{color:var(--orange)}
+.wbar-num.alert{color:var(--red)}
+.wdots{display:flex;flex-wrap:wrap;gap:4px;flex:1;align-items:center}
+.wd{
+  width:10px;height:10px;border-radius:50%;
+  border:1.5px solid var(--border);background:var(--s3);
+}
+.wd.wip{background:var(--orange);border-color:var(--orange)}
+.wd.queued{background:var(--goldd);border-color:var(--gold)}
+.wd.done{background:var(--green);border-color:var(--green)}
+
+/* ================================================================
+   LEGEND
+================================================================ */
+.legend{
+  background:var(--s1);border-bottom:1px solid var(--border);
+  padding:6px 14px;display:flex;flex-wrap:wrap;gap:10px;
+}
+.lg{display:flex;align-items:center;gap:4px;font-size:10px;color:var(--creamd)}
+.lg-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.lg b{font-weight:700}
+
+/* ================================================================
+   TABS
+================================================================ */
+.tabs{
+  background:var(--s1);border-bottom:1px solid var(--border);
+  display:flex;overflow-x:auto;padding:0 10px;
+}
+.tabs::-webkit-scrollbar{display:none}
+.tab{
+  padding:9px 14px;font-size:12px;font-weight:700;color:var(--creamd);
+  border-bottom:3px solid transparent;white-space:nowrap;cursor:pointer;
+  letter-spacing:.04em;transition:color .2s,border-color .2s;flex-shrink:0;
+}
+.tab.on{color:var(--gold);border-bottom-color:var(--gold)}
+
+/* ================================================================
+   PAGE
+================================================================ */
+.page{display:none;padding:12px 12px 90px}
+.page.on{display:block}
+
+/* ================================================================
+   ORDER CARDS
+================================================================ */
+.btn-new{
+  width:100%;background:var(--gold);color:var(--bg);
+  border:none;border-radius:12px;padding:15px;margin-bottom:12px;
+  font-family:'Zen Kaku Gothic New',sans-serif;
+  font-size:15px;font-weight:900;letter-spacing:.1em;
+  cursor:pointer;transition:background .15s,transform .1s;
+}
+.btn-new:active{background:var(--goldl);transform:scale(.98)}
+
+.ocard{
+  background:var(--s1);border:1px solid var(--border);
+  border-radius:14px;margin-bottom:10px;overflow:hidden;position:relative;
+}
+.ocard::before{
+  content:'';position:absolute;left:0;top:0;bottom:0;width:4px;
+}
+.ocard.oc-same-day::before{background:var(--goldd)}
+.ocard.oc-shipping::before{background:var(--blue)}
+.ocard.oc-over::before{background:var(--red)}
+
+/* order head */
+.och{
+  display:flex;align-items:flex-start;gap:8px;
+  padding:10px 12px 8px 16px;border-bottom:1px solid var(--border);
+}
+.och-num{
+  background:var(--s3);border:1px solid var(--border);
+  border-radius:6px;padding:3px 8px;
+  font-family:'Zen Kaku Gothic New',sans-serif;
+  font-size:14px;font-weight:900;color:var(--gold);flex-shrink:0;
+}
+.och-badge{
+  font-size:10px;font-weight:700;border-radius:4px;
+  padding:2px 6px;margin-left:4px;flex-shrink:0;align-self:center;
+}
+.badge-sd{background:rgba(200,168,74,.15);color:var(--gold)}
+.badge-sh{background:rgba(72,136,200,.15);color:var(--blue)}
+.och-info{flex:1;min-width:0}
+.och-note{font-size:11px;color:var(--creamd);margin-top:1px;word-break:break-all}
+.och-times{text-align:right;flex-shrink:0;font-size:11px;line-height:1.7}
+.och-elapsed{color:var(--orange);font-weight:600}
+.och-eta{color:var(--gold);font-weight:700}
+.och-eta-time{color:var(--teal);font-weight:700;font-size:12px}
+.och-actions{display:flex;gap:5px;padding:5px 10px;border-top:1px solid var(--border);justify-content:flex-end}
+.act-btn{
+  background:var(--s2);border:1px solid var(--border);
+  border-radius:6px;padding:5px 10px;font-size:11px;color:var(--creamd);
+  cursor:pointer;touch-action:manipulation;transition:all .1s;
+}
+.act-btn:active{background:var(--s3);transform:scale(.95)}
+.act-btn.danger{color:var(--red);border-color:rgba(200,72,72,.3)}
+
+/* item row */
+.irow{
+  padding:9px 12px 9px 16px;border-bottom:1px solid var(--border);
+}
+.irow:last-of-type{border-bottom:none}
+.ihead{display:flex;align-items:center;gap:7px;margin-bottom:7px}
+.iname{flex:1;font-size:13px;font-weight:700}
+.iname.done-item{color:var(--creamd);text-decoration:line-through}
+.ibadges{display:flex;gap:4px;flex-wrap:wrap}
+.ibadge{
+  font-size:9px;font-weight:700;border-radius:3px;padding:2px 5px;
+}
+.ib-skip{background:rgba(72,176,122,.12);color:var(--green)}
+.ib-pay{background:rgba(200,168,74,.12);color:var(--gold)}
+.imins{font-size:10px;color:var(--creamd)}
+.iprice{font-size:11px;color:var(--gold);font-weight:700}
+
+/* step row */
+.steps{display:grid;grid-template-columns:repeat(6,1fr);gap:3px}
+.sbtn{
+  border:1px solid var(--border);background:var(--s3);
+  border-radius:7px;height:42px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;
+  cursor:pointer;touch-action:manipulation;
+  transition:transform .1s,background .15s;position:relative;
+}
+.sbtn:active{transform:scale(.91)}
+.sbtn-skip{opacity:.35;pointer-events:none}
+.sbtn-icon{font-size:13px;line-height:1}
+.sbtn-lbl{font-size:8.5px;color:var(--creamd);line-height:1}
+.sbtn-who{font-size:7.5px;font-weight:700;line-height:1}
+
+.sbtn.s-done{background:var(--s2)}
+.sbtn.s-done::after{
+  content:'✓';position:absolute;top:2px;right:3px;font-size:8px;color:var(--green);
+}
+.sbtn.s-next{animation:puls 2s infinite}
+@keyframes puls{
+  0%,100%{box-shadow:0 0 0 0 rgba(200,168,74,.12)}
+  50%{box-shadow:0 0 0 4px rgba(200,168,74,.06)}
+}
+
+/* step color variants */
+.sbtn[data-s="0"].s-done{border-color:rgba(72,136,200,.35)}
+.sbtn[data-s="1"].s-done{border-color:rgba(200,72,168,.35)}
+.sbtn[data-s="2"].s-done{border-color:rgba(200,168,74,.35)}
+.sbtn[data-s="3"].s-done{border-color:rgba(200,124,72,.35)}
+.sbtn[data-s="4"].s-done{border-color:rgba(72,176,122,.35)}
+.sbtn[data-s="5"].s-done{border-color:rgba(72,196,200,.35)}
+
+.sbtn[data-s="0"].s-next{background:rgba(72,136,200,.14);border-color:rgba(72,136,200,.5)}
+.sbtn[data-s="1"].s-next{background:rgba(200,72,168,.14);border-color:rgba(200,72,168,.5)}
+.sbtn[data-s="2"].s-next{background:rgba(200,168,74,.14);border-color:rgba(200,168,74,.5)}
+.sbtn[data-s="3"].s-next{background:rgba(200,124,72,.14);border-color:rgba(200,124,72,.5)}
+.sbtn[data-s="4"].s-next{background:rgba(72,176,122,.14);border-color:rgba(72,176,122,.5)}
+.sbtn[data-s="5"].s-next{background:rgba(72,196,200,.14);border-color:rgba(72,196,200,.5)}
+
+.sbtn[data-s="0"] .sbtn-who{color:var(--cs0)}
+.sbtn[data-s="1"] .sbtn-who{color:var(--cs1)}
+.sbtn[data-s="2"] .sbtn-who{color:var(--cs2)}
+.sbtn[data-s="3"] .sbtn-who{color:var(--cs3)}
+.sbtn[data-s="4"] .sbtn-who{color:var(--cs4)}
+.sbtn[data-s="5"] .sbtn-who{color:var(--cs5)}
+
+/* ================================================================
+   HISTORY / CALENDAR
+================================================================ */
+.cal-nav{
+  display:flex;align-items:center;gap:10px;margin-bottom:14px;
+}
+.cal-mon{
+  font-family:'Zen Kaku Gothic New',sans-serif;
+  font-size:18px;font-weight:900;color:var(--gold);flex:1;text-align:center;
+}
+.cal-arrow{
+  background:var(--s2);border:1px solid var(--border);
+  border-radius:8px;width:36px;height:36px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:16px;cursor:pointer;color:var(--cream);touch-action:manipulation;
+}
+.cal-arrow:active{background:var(--s3)}
+.cal-summary{
+  display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px;
+}
+.cal-stat{
+  background:var(--s1);border:1px solid var(--border);
+  border-radius:10px;padding:11px;text-align:center;
+}
+.cal-stat-val{
+  font-family:'Zen Kaku Gothic New',sans-serif;
+  font-size:22px;font-weight:900;color:var(--gold);
+}
+.cal-stat-lbl{font-size:10px;color:var(--creamd);margin-top:2px}
+
+/* payment breakdown */
+.pay-breakdown{
+  background:var(--s1);border:1px solid var(--border);
+  border-radius:10px;padding:12px;margin-bottom:12px;
+}
+.pay-row{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:5px 0;border-bottom:1px solid var(--border);
+}
+.pay-row:last-child{border:none}
+.pay-lbl{font-size:12px;color:var(--creamd)}
+.pay-val{font-size:13px;font-weight:700;color:var(--cream)}
+.pay-pct{font-size:10px;color:var(--creamd);margin-left:6px}
+
+.hcard{
+  background:var(--s1);border:1px solid var(--border);
+  border-radius:10px;padding:11px 13px;margin-bottom:7px;
+  display:flex;align-items:flex-start;gap:10px;
+}
+.hcard-check{
+  width:26px;height:26px;flex-shrink:0;
+  background:rgba(72,176,122,.12);border:1px solid rgba(72,176,122,.3);
+  border-radius:50%;display:flex;align-items:center;justify-content:center;
+  color:var(--green);font-size:12px;
+}
+.hcard-ship{
+  background:rgba(72,136,200,.12);border-color:rgba(72,136,200,.3);color:var(--blue);
+}
+.hcard-num{font-size:14px;font-weight:700}
+.hcard-items{font-size:11px;color:var(--creamd);margin-top:2px}
+.hcard-wait{font-size:10px;color:var(--orange);margin-top:2px}
+.hcard-meta{text-align:right;margin-left:auto;flex-shrink:0}
+.hcard-time{font-size:12px;color:var(--gold);font-weight:700}
+.hcard-total{font-size:11px;color:var(--creamd);margin-top:2px}
+.hcard-del{
+  background:none;border:none;color:var(--red);font-size:16px;
+  cursor:pointer;padding:2px 4px;touch-action:manipulation;
+}
+
+/* ================================================================
+   PRODUCT MASTER
+================================================================ */
+.master-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.master-ttl{
+  font-family:'Zen Kaku Gothic New',sans-serif;font-size:16px;font-weight:900;color:var(--gold);
+}
+.btn-add{
+  background:var(--gold);color:var(--bg);border:none;border-radius:8px;
+  padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;
+  font-family:'Zen Kaku Gothic New',sans-serif;
+}
+.btn-add:active{background:var(--goldl)}
+.pgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.pcard{
+  background:var(--s1);border:1px solid var(--border);
+  border-radius:10px;padding:12px;position:relative;
+}
+.pcard-name{font-size:13px;font-weight:700;color:var(--cream);padding-right:50px;margin-bottom:4px}
+.pcard-price{font-size:11px;color:var(--creamd);margin-bottom:6px}
+.pcard-steps{display:flex;flex-direction:column;gap:3px}
+.pcard-step-row{display:flex;align-items:center;gap:6px;font-size:10px}
+.pcard-step-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.pcard-step-name{color:var(--creamd);flex:1}
+.pcard-step-min{color:var(--gold);font-weight:700}
+.pcard-btns{position:absolute;top:9px;right:9px;display:flex;gap:4px}
+.ico-btn{
+  width:26px;height:26px;background:var(--s2);border:1px solid var(--border);
+  border-radius:5px;display:flex;align-items:center;justify-content:center;
+  font-size:11px;cursor:pointer;color:var(--creamd);touch-action:manipulation;
+}
+.ico-btn:active{transform:scale(.9)}
+.ico-btn.del{color:var(--red)}
+
+/* ================================================================
+   ANALYTICS
+================================================================ */
+.analytics-section{margin-bottom:16px}
+.an-title{
+  font-size:12px;font-weight:700;color:var(--creamd);
+  letter-spacing:.08em;margin-bottom:8px;
+}
+.rank-row{
+  display:flex;align-items:center;gap:8px;
+  padding:8px 12px;background:var(--s1);border:1px solid var(--border);
+  border-radius:8px;margin-bottom:5px;
+}
+.rank-pos{
+  width:22px;font-size:12px;font-weight:700;color:var(--creamd);text-align:center;flex-shrink:0;
+}
+.rank-name{flex:1;font-size:13px}
+.rank-cnt{font-size:12px;color:var(--creamd)}
+.rank-amt{font-size:13px;font-weight:700;color:var(--gold)}
+.bar-wrap{height:6px;background:var(--s3);border-radius:3px;margin-top:5px;overflow:hidden}
+.bar-fill{height:100%;background:var(--gold);border-radius:3px}
+
+/* step stats */
+.step-stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-bottom:8px}
+.step-stat-card{
+  background:var(--s1);border:1px solid var(--border);
+  border-radius:8px;padding:9px;text-align:center;
+}
+.ssc-label{font-size:10px;color:var(--creamd)}
+.ssc-who{font-size:9px;font-weight:700;margin-bottom:4px}
+.ssc-val{
+  font-family:'Zen Kaku Gothic New',sans-serif;
+  font-size:18px;font-weight:900;color:var(--gold);
+}
+.ssc-unit{font-size:10px;color:var(--creamd)}
+
+/* ================================================================
+   MODALS / SHEETS
+================================================================ */
+.overlay{
+  position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.88);
+  display:flex;align-items:flex-end;justify-content:center;
+  opacity:0;pointer-events:none;transition:opacity .2s;
+}
+.overlay.on{opacity:1;pointer-events:all}
+.sheet{
+  background:var(--s1);border-radius:20px 20px 0 0;
+  border-top:1px solid var(--border);
+  width:100%;max-width:640px;
+  padding:20px 16px 32px;
+  max-height:93vh;overflow-y:auto;
+  transform:translateY(40px);transition:transform .25s;
+}
+.overlay.on .sheet{transform:translateY(0)}
+.sh-title{
+  font-family:'Zen Kaku Gothic New',sans-serif;
+  font-size:17px;font-weight:900;color:var(--gold);margin-bottom:16px;
+}
+.sh-lbl{font-size:11px;font-weight:700;color:var(--creamd);letter-spacing:.07em;margin-bottom:5px}
+.sh-input{
+  width:100%;background:var(--s2);border:1px solid var(--border);
+  border-radius:8px;padding:11px 13px;font-size:16px;color:var(--cream);
+  margin-bottom:13px;outline:none;font-family:'Noto Sans JP',sans-serif;
+}
+.sh-input:focus{border-color:var(--goldd)}
+.sh-num-input{
+  text-align:center;font-family:'Zen Kaku Gothic New',sans-serif;
+  font-size:22px;font-weight:900;letter-spacing:.1em;
+}
+.sh-textarea{
+  width:100%;background:var(--s2);border:1px solid var(--border);
+  border-radius:8px;padding:11px 13px;font-size:14px;color:var(--cream);
+  margin-bottom:13px;outline:none;font-family:'Noto Sans JP',sans-serif;
+  resize:none;height:60px;
+}
+.sh-textarea:focus{border-color:var(--goldd)}
+
+/* seg control */
+.seg{display:flex;gap:0;background:var(--s2);border:1px solid var(--border);border-radius:9px;overflow:hidden;margin-bottom:13px}
+.seg-btn{
+  flex:1;padding:10px;font-size:12px;font-weight:700;text-align:center;
+  cursor:pointer;color:var(--creamd);touch-action:manipulation;transition:all .15s;
+}
+.seg-btn.on{background:var(--s3);color:var(--gold)}
+
+/* product picker */
+.ppick{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:12px}
+.pp{
+  background:var(--s2);border:1.5px solid var(--border);
+  border-radius:9px;padding:10px;text-align:left;cursor:pointer;
+  touch-action:manipulation;transition:all .15s;
+}
+.pp:active{transform:scale(.96)}
+.pp.on{background:rgba(200,168,74,.09);border-color:var(--goldd)}
+.pp-name{font-size:12px;font-weight:700;color:var(--cream)}
+.pp.on .pp-name{color:var(--gold)}
+.pp-sub{font-size:10px;color:var(--creamd);margin-top:2px}
+
+/* qty */
+.qty-row{
+  display:flex;align-items:center;gap:8px;
+  background:var(--s2);border:1px solid var(--border);
+  border-radius:8px;padding:8px 11px;margin-bottom:6px;
+}
+.qty-name{flex:1;font-size:12px;font-weight:700}
+.qty-ctrl{display:flex;align-items:center}
+.qbtn{
+  width:34px;height:34px;background:var(--s3);border:1px solid var(--border);
+  color:var(--gold);font-size:17px;font-weight:700;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  touch-action:manipulation;transition:background .1s;
+}
+.qbtn:first-child{border-radius:7px 0 0 7px}
+.qbtn:last-child{border-radius:0 7px 7px 0}
+.qbtn:active{background:var(--s4)}
+.qval{
+  width:38px;text-align:center;background:var(--s2);
+  border-top:1px solid var(--border);border-bottom:1px solid var(--border);
+  font-size:17px;font-weight:900;color:var(--cream);
+  font-family:'Zen Kaku Gothic New',sans-serif;
+  height:34px;display:flex;align-items:center;justify-content:center;
+}
+.skip-row{
+  display:flex;align-items:center;gap:8px;
+  background:var(--s2);border:1px solid var(--border);
+  border-radius:8px;padding:9px 12px;margin-bottom:6px;
+}
+.skip-lbl{flex:1;font-size:12px;color:var(--cream)}
+.skip-sub{font-size:10px;color:var(--creamd);display:block;margin-top:1px}
+.tog{
+  width:40px;height:22px;border-radius:11px;
+  background:var(--s4);border:none;cursor:pointer;
+  position:relative;transition:background .2s;flex-shrink:0;
+}
+.tog::after{
+  content:'';position:absolute;width:16px;height:16px;
+  background:var(--creamd);border-radius:50%;top:3px;left:3px;
+  transition:transform .2s,background .2s;
+}
+.tog.on{background:rgba(72,176,122,.3)}
+.tog.on::after{transform:translateX(18px);background:var(--green)}
+
+/* payment picker */
+.pay-pick{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-bottom:13px}
+.pay-btn{
+  background:var(--s2);border:1.5px solid var(--border);
+  border-radius:8px;padding:10px 5px;text-align:center;
+  cursor:pointer;touch-action:manipulation;font-size:12px;font-weight:700;
+  color:var(--creamd);transition:all .15s;
+}
+.pay-btn:active{transform:scale(.95)}
+.pay-btn.on{background:rgba(200,168,74,.1);border-color:var(--goldd);color:var(--gold)}
+
+/* time picker */
+.tq{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.tqb{
+  background:var(--s2);border:1px solid var(--border);
+  border-radius:7px;padding:7px 12px;font-size:12px;font-weight:600;
+  color:var(--cream);cursor:pointer;touch-action:manipulation;
+  font-family:'Noto Sans JP',sans-serif;transition:all .13s;
+}
+.tqb:active{transform:scale(.94)}
+.tqb.on{background:rgba(200,168,74,.1);border-color:var(--goldd);color:var(--gold)}
+.tadj{display:flex;align-items:center;gap:8px;margin-bottom:13px}
+.tbox{
+  background:var(--s2);border:1px solid var(--border);
+  border-radius:8px;padding:8px 16px;
+  font-size:22px;font-weight:900;color:var(--gold);
+  font-family:'Zen Kaku Gothic New',sans-serif;min-width:84px;text-align:center;
+}
+.tadjcol{display:flex;flex-direction:column;gap:4px}
+.tadjb{
+  background:var(--s2);border:1px solid var(--border);
+  border-radius:6px;width:44px;height:28px;font-size:12px;font-weight:700;
+  color:var(--gold);cursor:pointer;display:flex;align-items:center;justify-content:center;
+  touch-action:manipulation;transition:all .1s;
+}
+.tadjb:active{background:var(--s3);transform:scale(.93)}
+
+/* step time rows in master modal */
+.step-time-grid{
+  background:var(--s2);border:1px solid var(--border);
+  border-radius:9px;overflow:hidden;margin-bottom:13px;
+}
+.str{
+  display:flex;align-items:center;gap:10px;padding:9px 12px;
+  border-bottom:1px solid var(--border);
+}
+.str:last-child{border:none}
+.str-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.str-lbl{flex:1;font-size:12px}
+.str-who{font-size:10px;font-weight:700}
+.str-ctrl{display:flex;align-items:center;gap:0}
+.stb{
+  width:30px;height:28px;background:var(--s3);border:1px solid var(--border);
+  color:var(--gold);font-size:13px;font-weight:700;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;touch-action:manipulation;
+}
+.stb:first-child{border-radius:5px 0 0 5px}
+.stb:last-child{border-radius:0 5px 5px 0}
+.stb:active{background:var(--s4)}
+.stv{
+  width:38px;text-align:center;background:var(--s2);
+  border-top:1px solid var(--border);border-bottom:1px solid var(--border);
+  font-size:14px;font-weight:700;color:var(--cream);
+  font-family:'Zen Kaku Gothic New',sans-serif;
+  height:28px;display:flex;align-items:center;justify-content:center;
+}
+
+/* actions */
+.sh-actions{display:flex;gap:8px;margin-top:6px}
+.sh-cancel{
+  flex:1;background:var(--s2);border:1px solid var(--border);
+  border-radius:9px;padding:13px;color:var(--creamd);
+  font-size:14px;font-weight:700;cursor:pointer;font-family:'Noto Sans JP',sans-serif;
+}
+.sh-ok{
+  flex:2;background:var(--gold);border:none;border-radius:9px;
+  padding:13px;color:var(--bg);font-size:14px;font-weight:900;cursor:pointer;
+  font-family:'Zen Kaku Gothic New',sans-serif;letter-spacing:.05em;
+}
+.sh-cancel:active,.sh-ok:active{transform:scale(.97)}
+
+/* confirm */
+.cf-title{font-size:16px;font-weight:700;color:var(--cream);text-align:center;margin-bottom:7px}
+.cf-sub{font-size:12px;color:var(--creamd);text-align:center;margin-bottom:22px}
+
+/* ================================================================
+   TOAST
+================================================================ */
+.toast{
+  position:fixed;bottom:26px;left:50%;
+  transform:translateX(-50%) translateY(68px);
+  background:var(--s1);border:1px solid var(--goldd);
+  border-radius:11px;padding:10px 20px;font-size:13px;font-weight:600;
+  color:var(--gold);z-index:400;white-space:nowrap;
+  transition:transform .28s;pointer-events:none;
+}
+.toast.on{transform:translateX(-50%) translateY(0)}
+
+/* ================================================================
+   LOADING
+================================================================ */
+.loading-overlay{
+  position:fixed;inset:0;background:rgba(13,12,10,.8);
+  z-index:300;display:flex;align-items:center;justify-content:center;
+  flex-direction:column;gap:14px;opacity:0;pointer-events:none;transition:opacity .2s;
+}
+.loading-overlay.on{opacity:1;pointer-events:all}
+.spinner{
+  width:36px;height:36px;border:3px solid var(--border);
+  border-top-color:var(--gold);border-radius:50%;animation:spin .7s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ================================================================
+   UTIL
+================================================================ */
+.empty{text-align:center;padding:50px 20px;color:var(--creamd)}
+.empty-ico{font-size:40px;margin-bottom:12px;opacity:.3}
+.divider{height:1px;background:var(--border);margin:10px 0}
+.text-gold{color:var(--gold)}
+.text-dim{color:var(--creamd)}
+.fw7{font-weight:700}
+</style>
+</head>
+<body>
+
+<!-- ================================================================
+  LOGIN
+================================================================ -->
+<div id="login-screen">
+  <div>
+    <div class="login-logo">🔆 レーザー工房</div>
+    <div class="login-sub">マルシェ管理システム</div>
+  </div>
+  <div class="login-box">
+    <div class="login-label">パスワード</div>
+    <input class="login-input" id="pw-input" type="password" inputmode="none" placeholder="••••••••">
+    <button class="login-btn" id="pw-btn">ログイン</button>
+    <div class="login-err" id="login-err">パスワードが違います</div>
+  </div>
+</div>
+
+<!-- ================================================================
+  MAIN APP
+================================================================ -->
+<div id="app" style="display:none">
+
+<header class="hdr">
+  <div class="hdr-logo">🔆 工房</div>
+  <div class="hdr-clock" id="clock">--:--</div>
+  <div class="hdr-pills">
+    <div class="pill">当日待ち <b id="st-wait">0</b></div>
+    <div class="pill">作業中 <b id="st-wip">0</b></div>
+    <div class="pill">郵送 <b id="st-ship">0</b></div>
+  </div>
+</header>
+
+<div class="wbar">
+  <div>
+    <div class="wbar-label">当日渡し<br>待ち目安</div>
+    <div class="wbar-num" id="wbar-num">なし</div>
+  </div>
+  <div class="wdots" id="wdots"></div>
+</div>
+
+<div class="legend">
+  <div class="lg"><div class="lg-dot" style="background:var(--cs0)"></div><b style="color:var(--cs0)">美咲</b> 受付</div>
+  <div class="lg"><div class="lg-dot" style="background:var(--cs1)"></div><b style="color:var(--cs1)">栄人</b> 2値化</div>
+  <div class="lg"><div class="lg-dot" style="background:var(--cs2)"></div><b style="color:var(--cs2)">美咲</b> デザイン</div>
+  <div class="lg"><div class="lg-dot" style="background:var(--cs3)"></div><b style="color:var(--cs3)">栄人</b> 彫刻</div>
+  <div class="lg"><div class="lg-dot" style="background:var(--cs4)"></div><b style="color:var(--cs4)">美咲</b> 撮影</div>
+  <div class="lg"><div class="lg-dot" style="background:var(--cs5)"></div><b style="color:var(--cs5)">美咲</b> 完成連絡</div>
+</div>
+
+<nav class="tabs">
+  <div class="tab on"  data-tab="orders">📋 注文管理</div>
+  <div class="tab"     data-tab="history">📅 履歴</div>
+  <div class="tab"     data-tab="analytics">📊 売上</div>
+  <div class="tab"     data-tab="master">⚙️ 商品</div>
+</nav>
+
+<!-- PAGE: ORDERS -->
+<div class="page on" id="page-orders">
+  <button class="btn-new" id="btn-new">＋ 新規注文を受け付ける</button>
+  <div id="orders-list"></div>
+</div>
+
+<!-- PAGE: HISTORY -->
+<div class="page" id="page-history">
+  <div class="cal-nav">
+    <div class="cal-arrow" id="cal-prev">‹</div>
+    <div class="cal-mon" id="cal-mon">----年--月</div>
+    <div class="cal-arrow" id="cal-next">›</div>
+  </div>
+  <div class="cal-summary">
+    <div class="cal-stat"><div class="cal-stat-val" id="hs-cnt">0</div><div class="cal-stat-lbl">完了件数</div></div>
+    <div class="cal-stat"><div class="cal-stat-val" id="hs-sales" style="font-size:16px">¥0</div><div class="cal-stat-lbl">売上合計</div></div>
+    <div class="cal-stat"><div class="cal-stat-val" id="hs-wait">--</div><div class="cal-stat-lbl">平均待ち(分)</div></div>
+  </div>
+  <div class="pay-breakdown" id="pay-breakdown"></div>
+  <div id="history-list"></div>
+</div>
+
+<!-- PAGE: ANALYTICS -->
+<div class="page" id="page-analytics">
+  <div class="cal-nav" style="margin-bottom:10px">
+    <div class="cal-arrow" id="an-prev">‹</div>
+    <div class="cal-mon" id="an-mon">----年--月</div>
+    <div class="cal-arrow" id="an-next">›</div>
+  </div>
+  <div class="analytics-section">
+    <div class="an-title">▶ 商品別ランキング</div>
+    <div id="rank-list"></div>
+  </div>
+  <div class="analytics-section">
+    <div class="an-title">▶ 行程別 平均実績時間</div>
+    <div class="step-stat-grid" id="step-stat-grid"></div>
+    <div style="font-size:10px;color:var(--creamd);margin-top:4px">※ 完了ステップの実績値。マスター更新の参考にしてください。</div>
+  </div>
+  <div style="margin-top:10px">
+    <button class="act-btn" id="csv-btn" style="width:100%;padding:12px;font-size:13px">📥 Googleスプレッドシートで開く</button>
+  </div>
+</div>
+
+<!-- PAGE: MASTER -->
+<div class="page" id="page-master">
+  <div class="master-hdr">
+    <div class="master-ttl">商品マスター</div>
+    <button class="btn-add" id="btn-add-product">＋ 追加</button>
+  </div>
+  <div class="pgrid" id="pgrid"></div>
+</div>
+
+</div><!-- /app -->
+
+<!-- ================================================================
+  MODAL: NEW / EDIT ORDER
+================================================================ -->
+<div class="overlay" id="ov-order">
+<div class="sheet">
+  <div class="sh-title" id="order-modal-title">新規注文受付</div>
+
+  <div class="sh-lbl">受付番号</div>
+  <input class="sh-input sh-num-input" id="inp-num" type="number" inputmode="numeric" placeholder="例：1">
+
+  <div class="sh-lbl">お渡し方法</div>
+  <div class="seg" id="seg-delivery">
+    <div class="seg-btn on" data-val="same-day">🏪 当日渡し</div>
+    <div class="seg-btn"    data-val="shipping">📦 郵送</div>
+  </div>
+
+  <div class="sh-lbl">注文商品（複数可）</div>
+  <div class="ppick" id="ppick"></div>
+
+  <div id="qty-block" style="display:none">
+    <div class="sh-lbl">個数・スキップ設定</div>
+    <div id="qty-section"></div>
+    <div class="sh-lbl" style="margin-top:6px">支払い方法（商品ごとに設定可）</div>
+    <div id="pay-block"></div>
+  </div>
+
+  <div class="sh-lbl">備考・デザイン要望</div>
+  <textarea class="sh-textarea" id="inp-note" placeholder="例：ペットの写真・名前入れ など"></textarea>
+
+  <div class="sh-actions">
+    <button class="sh-cancel" id="order-cancel">キャンセル</button>
+    <button class="sh-ok"     id="order-ok">受付確定</button>
+  </div>
+</div>
+</div>
+
+<!-- MODAL: EDIT ITEM (price / skip / payment) -->
+<div class="overlay" id="ov-item">
+<div class="sheet">
+  <div class="sh-title" id="item-modal-title">商品を編集</div>
+
+  <div class="sh-lbl">個別価格（円）</div>
+  <input class="sh-input" id="inp-item-price" type="number" inputmode="numeric">
+
+  <div class="sh-lbl">支払い方法</div>
+  <div class="pay-pick" id="item-pay-pick">
+    <div class="pay-btn" data-pay="cash">💴 現金</div>
+    <div class="pay-btn" data-pay="airpay">💳 Airpay</div>
+    <div class="pay-btn" data-pay="paypay">📱 PayPay</div>
+  </div>
+
+  <div class="sh-lbl">スキップ設定</div>
+  <div class="skip-row">
+    <div>
+      <div class="skip-lbl">2値化をスキップ</div>
+      <span class="skip-sub">同じ写真を別商品に流用</span>
+    </div>
+    <button class="tog" id="tog-binarize"></button>
+  </div>
+  <div class="skip-row">
+    <div>
+      <div class="skip-lbl">デザインをスキップ</div>
+      <span class="skip-sub">同じデザインを別商品に流用</span>
+    </div>
+    <button class="tog" id="tog-design"></button>
+  </div>
+
+  <div class="sh-actions">
+    <button class="sh-cancel" id="item-cancel">キャンセル</button>
+    <button class="sh-ok"     id="item-ok">保存</button>
+  </div>
+</div>
+</div>
+
+<!-- MODAL: PRODUCT MASTER -->
+<div class="overlay" id="ov-product">
+<div class="sheet">
+  <div class="sh-title" id="prod-title">商品追加</div>
+
+  <div class="sh-lbl">商品名</div>
+  <input class="sh-input" id="inp-pname" type="text" inputmode="text" placeholder="例：キーホルダー">
+
+  <div class="sh-lbl">定価（円）</div>
+  <input class="sh-input" id="inp-pprice" type="number" inputmode="numeric" placeholder="例：1500">
+
+  <div class="sh-lbl">行程ごとの作業時間（分）</div>
+  <div class="step-time-grid" id="step-time-grid"></div>
+
+  <div class="sh-actions">
+    <button class="sh-cancel" id="prod-cancel">キャンセル</button>
+    <button class="sh-ok"     id="prod-ok">保存</button>
+  </div>
+</div>
+</div>
+
+<!-- MODAL: CONFIRM -->
+<div class="overlay" id="ov-confirm">
+<div class="sheet">
+  <div class="cf-title" id="cf-title">確認</div>
+  <div class="cf-sub"   id="cf-sub"></div>
+  <div class="sh-actions">
+    <button class="sh-cancel" id="cf-cancel">キャンセル</button>
+    <button class="sh-ok"     id="cf-ok" style="background:var(--red)">削除</button>
+  </div>
+</div>
+</div>
+
+<div class="toast" id="toast"></div>
+<div class="loading-overlay" id="loading"><div class="spinner"></div><div style="font-size:12px;color:var(--creamd)">通信中…</div></div>
+
+<!-- ================================================================
+  SCRIPT
+================================================================ -->
+<script>
+// ================================================================
+//  CONFIG — GASのデプロイURLをここに設定
+// ================================================================
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbz-1sdaPcQAVGHs-FRQ2IYEgCAzJY2xFSdgyj9p2NAE8g_9STSd9T29GKTVddxYLJqgvw/exec';
+
+// ================================================================
+//  CONSTANTS
+// ================================================================
+const STEPS = [
+  { label:'受付',    icon:'📥', who:'美咲', color:'var(--cs0)' },
+  { label:'2値化',   icon:'🖼', who:'栄人', color:'var(--cs1)' },
+  { label:'デザイン',icon:'✏️', who:'美咲', color:'var(--cs2)' },
+  { label:'彫刻',    icon:'🔆', who:'栄人', color:'var(--cs3)' },
+  { label:'撮影',    icon:'📷', who:'美咲', color:'var(--cs4)' },
+  { label:'完成連絡',icon:'📩', who:'美咲', color:'var(--cs5)' },
+];
+const N = STEPS.length;
+const TQ_MINS = [5,10,15,20,25,30,45,60];
+const PAY_LABELS = { cash:'現金', airpay:'Airpay', paypay:'PayPay' };
+const DEFAULT_PRODUCTS = [
+  { id:'dp1', name:'キーホルダー', price:1500, stepTimes:{0:2,1:3,2:5,3:4,4:2,5:1}, totalMinutes:17 },
+  { id:'dp2', name:'スマホケース', price:2000, stepTimes:{0:2,1:3,2:7,3:5,4:2,5:1}, totalMinutes:20 },
+  { id:'dp3', name:'コースター',   price:1000, stepTimes:{0:2,1:2,2:3,3:3,4:2,5:1}, totalMinutes:13 },
+];
+
+// ================================================================
+//  STATE
+// ================================================================
+let token = '';
+let S = { orders:[], products:[] };
+let historyData = [];
+let calYear  = new Date().getFullYear();
+let calMonth = new Date().getMonth() + 1;
+let anYear   = new Date().getFullYear();
+let anMonth  = new Date().getMonth() + 1;
+
+// modal temps
+let T = {
+  editOrderId: null,
+  selProds: {},    // {pid: qty}
+  delivery: 'same-day',
+  editItemId: null, editOrderIdForItem: null,
+  skipBinarize: false, skipDesign: false,
+  itemPayment: '',
+  itemPrice: 0,
+  editPid: null,
+  stepTimes: {},   // {0:min, 1:min, ...}
+};
+
+// ================================================================
+//  GAS API
+// ================================================================
+async function api(action, data={}) {
+  showLoading(true);
+  try {
+    if (['getAll','getHistory','auth'].includes(action)) {
+      const params = new URLSearchParams({ action, token, ...data });
+      const r = await fetch(`${GAS_URL}?${params}`);
+      const j = await r.json();
+      if (!j.ok) throw new Error(j.error);
+      return j.data;
+    } else {
+      const r = await fetch(GAS_URL, {
+        method:'POST', body: JSON.stringify({ action, token, ...data }),
+        headers:{'Content-Type':'application/json'},
+      });
+      const j = await r.json();
+      if (!j.ok) throw new Error(j.error);
+      return j.data;
+    }
+  } catch(e) {
+    toast('❌ ' + e.message);
+    return null;
+  } finally {
+    showLoading(false);
+  }
+}
+
+// ================================================================
+//  AUTH
+// ================================================================
+document.getElementById('pw-btn').addEventListener('click', doLogin);
+document.getElementById('pw-input').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
+
+async function doLogin() {
+  const pw = document.getElementById('pw-input').value;
+  if (!pw) return;
+  const res = await api('auth', { password: pw });
+  if (!res) { document.getElementById('login-err').style.display='block'; return; }
+  token = res.token;
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  await loadAll();
+  startClock();
+}
+
+// ================================================================
+//  LOAD
+// ================================================================
+async function loadAll() {
+  const res = await api('getAll');
+  if (!res) return;
+  S.orders   = res.orders   || [];
+  S.products = res.products.length ? res.products : DEFAULT_PRODUCTS;
+  // parse stepTimes JSON
+  S.products.forEach(p => {
+    if (typeof p.stepTimesJson === 'string') {
+      try { p.stepTimes = JSON.parse(p.stepTimesJson); } catch{ p.stepTimes = {}; }
+    }
+    p.stepTimes = p.stepTimes || {};
+    p.totalMinutes = p.totalMinutes || Object.values(p.stepTimes).reduce((a,b)=>a+Number(b),0) || 15;
+  });
+  render();
+}
+
+async function loadHistory() {
+  const res = await api('getHistory', { year: calYear, month: calMonth });
+  if (!res) return;
+  historyData = res.history || [];
+  renderHistory();
+}
+
+async function loadAnalytics() {
+  const res = await api('getHistory', { year: anYear, month: anMonth });
+  if (!res) return;
+  historyData = res.history || [];
+  renderAnalytics();
+}
+
+// ================================================================
+//  CLOCK
+// ================================================================
+function startClock() {
+  const tick = () => {
+    const n = new Date();
+    document.getElementById('clock').textContent =
+      String(n.getHours()).padStart(2,'0') + ':' + String(n.getMinutes()).padStart(2,'0');
+  };
+  tick(); setInterval(tick, 1000);
+  setInterval(() => { renderOrders(); updateWait(); }, 60000);
+}
+
+// ================================================================
+//  RENDER
+// ================================================================
+function render() { renderOrders(); updateWait(); renderMaster(); }
+
+/* ---- WAIT TIME ---- */
+function calcItemRemainingMins(item) {
+  const p = S.products.find(x => x.id === item.pid);
+  if (!p) return 0;
+  let mins = 0;
+  item.steps.forEach(sd => {
+    if (!sd.done) {
+      const t = Number(p.stepTimes[sd.stepIndex]) || 0;
+      // skip 2値化/デザイン
+      if (sd.stepIndex === 1 && item.skipBinarize) return;
+      if (sd.stepIndex === 2 && item.skipDesign)   return;
+      mins += t;
+    }
+  });
+  return mins;
+}
+
+function calcWait() {
+  // 当日渡しのみ・未完了のアイテムの残り時間合計
+  let total = 0;
+  S.orders.filter(o => o.deliveryType === 'same-day' && o.status !== 'done').forEach(o => {
+    (o.items || []).forEach(it => {
+      // ステップが一つも完了していないアイテムは待ちキューとして全時間
+      const anyDone = it.steps.some(s => s.done);
+      if (!anyDone) {
+        total += calcItemRemainingMins(it);
+      } else if (!it.steps.every(s => s.done)) {
+        total += calcItemRemainingMins(it);
+      }
+    });
+  });
+  return Math.max(0, Math.round(total));
+}
+
+function updateWait() {
+  const active = S.orders.filter(o => o.status !== 'done');
+  const sdOrders = active.filter(o => o.deliveryType === 'same-day');
+  const shOrders = active.filter(o => o.deliveryType === 'shipping');
+  const wipOrders = active.filter(o => (o.items||[]).some(it => it.steps.some(s=>s.done) && !it.steps.every(s=>s.done)));
+
+  document.getElementById('st-wait').textContent = sdOrders.length;
+  document.getElementById('st-wip').textContent  = wipOrders.length;
+  document.getElementById('st-ship').textContent = shOrders.length;
+
+  const w = calcWait();
+  const wn = document.getElementById('wbar-num');
+  wn.textContent = w ? `約${w}分` : 'なし';
+  wn.className = 'wbar-num' + (w > 60 ? ' alert' : w > 30 ? ' warn' : '');
+
+  // dots
+  const dots = document.getElementById('wdots');
+  dots.innerHTML = '';
+  sdOrders.forEach(o => {
+    const wip = (o.items||[]).some(it=>it.steps.some(s=>s.done)&&!it.steps.every(s=>s.done));
+    const d = document.createElement('div');
+    d.className = 'wd ' + (wip ? 'wip' : 'queued');
+    d.title = `#${o.num}`;
+    dots.appendChild(d);
+  });
+}
+
+/* ---- ORDERS ---- */
+function renderOrders() {
+  const el = document.getElementById('orders-list');
+  const active = S.orders.filter(o => o.status !== 'done');
+  if (!active.length) {
+    el.innerHTML = `<div class="empty"><div class="empty-ico">🔆</div>注文待機中</div>`;
+    return;
+  }
+  el.innerHTML = '';
+  [...active].sort((a,b) => a.num - b.num).forEach(o => renderOrderCard(o, el));
+}
+
+function itemTotalMins(item) {
+  const p = S.products.find(x => x.id === item.pid);
+  if (!p) return 0;
+  return STEPS.reduce((s,_,si) => {
+    if (si===1 && item.skipBinarize) return s;
+    if (si===2 && item.skipDesign)   return s;
+    return s + (Number(p.stepTimes[si]) || 0);
+  }, 0);
+}
+
+function orderETA(order) {
+  // sum of all item remainings
+  let rem = 0;
+  (order.items||[]).forEach(it => { rem += calcItemRemainingMins(it); });
+  // お渡し目安時刻
+  const now = new Date();
+  const eta = new Date(now.getTime() + rem * 60000);
+  return { rem, etaStr: fmt(eta) };
+}
+
+function renderOrderCard(o, container) {
+  const { rem, etaStr } = orderETA(o);
+  const elapsedM = Math.floor((Date.now() - new Date(o.createdAt)) / 60000);
+  const isOver   = rem === 0 && elapsedM > 5; // all done but not completed
+  const isSameDay = o.deliveryType === 'same-day';
+
+  const card = document.createElement('div');
+  card.className = `ocard ${isOver?'oc-over': isSameDay?'oc-same-day':'oc-shipping'}`;
+  card.dataset.oid = o.id;
+
+  card.innerHTML = `
+    <div class="och">
+      <div class="och-num">#${String(o.num).padStart(3,'0')}</div>
+      <span class="och-badge ${isSameDay?'badge-sd':'badge-sh'}">${isSameDay?'当日':'郵送'}</span>
+      <div class="och-info">
+        ${o.note?`<div class="och-note">📝 ${o.note}</div>`:''}
+      </div>
+      <div class="och-times">
+        <div class="och-elapsed">${elapsedStr(o.createdAt)}</div>
+        <div class="och-eta">残 約${rem}分</div>
+        ${isSameDay?`<div class="och-eta-time">目安 ${etaStr}</div>`:''}
+      </div>
+    </div>
+  `;
+
+  // item rows
+  (o.items||[]).forEach(it => {
+    const p = S.products.find(x => x.id === it.pid);
+    if (!p) return;
+    const allDone = it.steps.every(s => s.done);
+    const curStep = it.steps.findIndex(s => !s.done);
+    const sameItems = (o.items||[]).filter(x => x.pid === it.pid);
+    const pos = sameItems.indexOf(it) + 1;
+    const countLabel = sameItems.length > 1 ? ` (${pos}/${sameItems.length})` : '';
+    const payLabel = it.paymentMethod ? PAY_LABELS[it.paymentMethod] || it.paymentMethod : '';
+
+    const irow = document.createElement('div');
+    irow.className = 'irow';
+    irow.innerHTML = `
+      <div class="ihead">
+        <div class="iname${allDone?' done-item':''}">${p.name}${countLabel}</div>
+        <div class="ibadges">
+          ${it.skipBinarize?'<span class="ibadge ib-skip">2値化skip</span>':''}
+          ${it.skipDesign  ?'<span class="ibadge ib-skip">デザインskip</span>':''}
+          ${payLabel       ?`<span class="ibadge ib-pay">${payLabel}</span>`:''}
+        </div>
+        <div class="iprice">¥${Number(it.price||p.price||0).toLocaleString()}</div>
+        <div class="imins">約${itemTotalMins(it)}分</div>
+      </div>
+      <div class="steps">
+        ${STEPS.map((st,si) => {
+          const sd = it.steps.find(x => x.stepIndex == si);
+          const isDone = sd && sd.done;
+          const isSkip = (si===1 && it.skipBinarize) || (si===2 && it.skipDesign);
+          const isNext = !isDone && si === curStep && !allDone && !isSkip;
+          return `<button class="sbtn${isDone?' s-done':isNext?' s-next':''}${isSkip?' sbtn-skip':''}"
+            data-s="${si}" data-oid="${o.id}" data-iid="${it.id}" data-sdid="${sd?sd.id:''}"
+            onclick="tapStep(this)">
+            <span class="sbtn-icon">${st.icon}</span>
+            <span class="sbtn-lbl">${st.label}</span>
+            <span class="sbtn-who">${st.who}</span>
+          </button>`;
+        }).join('')}
+      </div>
+    `;
+    card.appendChild(irow);
+  });
+
+  // actions
+  const acts = document.createElement('div');
+  acts.className = 'och-actions';
+  acts.innerHTML = `
+    <div class="act-btn" onclick="openEditOrder('${o.id}')">✏️ 編集</div>
+    <div class="act-btn" onclick="openEditItem('${o.id}')">💰 価格・支払</div>
+    <div class="act-btn danger" onclick="confirmDeleteOrder('${o.id}')">🗑 削除</div>
+  `;
+  card.appendChild(acts);
+  container.appendChild(card);
+}
+
+/* ---- HISTORY ---- */
+async function renderHistory() {
+  const yr = calYear, mo = calMonth;
+  document.getElementById('cal-mon').textContent = `${yr}年${mo}月`;
+
+  if (!historyData.length) {
+    // load
+    const res = await api('getHistory', { year: yr, month: mo });
+    if (!res) return;
+    historyData = res.history || [];
+  }
+
+  // summary
+  const total = historyData.reduce((s,h) => {
+    return s + (h.salesItems||[]).reduce((ss,si)=>ss+Number(si.price||0),0);
+  }, 0);
+  const avgWait = historyData.length
+    ? Math.round(historyData.reduce((s,h)=>s+Number(h.waitMinutes||0),0)/historyData.length)
+    : '--';
+
+  document.getElementById('hs-cnt').textContent   = historyData.length;
+  document.getElementById('hs-sales').textContent = `¥${total.toLocaleString()}`;
+  document.getElementById('hs-wait').textContent  = avgWait;
+
+  // payment breakdown
+  const payMap = { cash:0, airpay:0, paypay:0 };
+  historyData.forEach(h => {
+    (h.salesItems||[]).forEach(si => {
+      const p = si.paymentMethod || 'cash';
+      payMap[p] = (payMap[p]||0) + Number(si.price||0);
+    });
+  });
+  const pb = document.getElementById('pay-breakdown');
+  pb.innerHTML = Object.entries(PAY_LABELS).map(([k,l]) => {
+    const pct = total ? Math.round(payMap[k]/total*100) : 0;
+    return `<div class="pay-row">
+      <span class="pay-lbl">${l}</span>
+      <span class="pay-val">¥${(payMap[k]||0).toLocaleString()}<span class="pay-pct">${pct}%</span></span>
+    </div>`;
+  }).join('');
+
+  // list
+  const list = document.getElementById('history-list');
+  if (!historyData.length) {
+    list.innerHTML = `<div class="empty"><div class="empty-ico">📅</div>この月の記録はありません</div>`;
+    return;
+  }
+  list.innerHTML = '';
+  [...historyData].sort((a,b)=>new Date(b.completedAt)-new Date(a.completedAt)).forEach(h => {
+    const iMap = {};
+    (h.salesItems||[]).forEach(si => {
+      iMap[si.productName] = (iMap[si.productName]||0)+1;
+    });
+    const itemStr = Object.entries(iMap).map(([n,c])=>c>1?`${n}×${c}`:n).join('、');
+    const htotal  = (h.salesItems||[]).reduce((s,si)=>s+Number(si.price||0),0);
+    const isShip  = h.deliveryType === 'shipping';
+
+    const card = document.createElement('div');
+    card.className = 'hcard';
+    card.innerHTML = `
+      <div class="hcard-check ${isShip?'hcard-ship':''}">${isShip?'📦':'✓'}</div>
+      <div style="flex:1;min-width:0">
+        <div class="hcard-num">#${String(h.num||'').padStart(3,'0')}</div>
+        <div class="hcard-items">${itemStr}</div>
+        <div class="hcard-wait">完了まで ${h.waitMinutes||'-'}分</div>
+      </div>
+      <div class="hcard-meta">
+        <div class="hcard-time">${fmt(h.completedAt)}</div>
+        <div class="hcard-total">¥${htotal.toLocaleString()}</div>
+      </div>
+      <button class="hcard-del" onclick="confirmDeleteHistory('${h.id}','${h.orderId}')">🗑</button>
+    `;
+    list.appendChild(card);
+  });
+}
+
+/* ---- ANALYTICS ---- */
+async function renderAnalytics() {
+  document.getElementById('an-mon').textContent = `${anYear}年${anMonth}月`;
+
+  const res = await api('getHistory', { year: anYear, month: anMonth });
+  if (!res) return;
+  const hist = res.history || [];
+
+  // product ranking
+  const pMap = {}; // {name: {cnt, total}}
+  hist.forEach(h => {
+    (h.salesItems||[]).forEach(si => {
+      if (!pMap[si.productName]) pMap[si.productName] = { cnt:0, total:0 };
+      pMap[si.productName].cnt++;
+      pMap[si.productName].total += Number(si.price||0);
+    });
+  });
+  const sorted = Object.entries(pMap).sort((a,b)=>b[1].cnt-a[1].cnt);
+  const maxCnt = sorted[0]?.[1]?.cnt || 1;
+  const rl = document.getElementById('rank-list');
+  if (!sorted.length) {
+    rl.innerHTML = `<div class="text-dim" style="font-size:12px;padding:10px">データなし</div>`;
+  } else {
+    rl.innerHTML = sorted.map(([name,{cnt,total}],i) => `
+      <div class="rank-row">
+        <div class="rank-pos">${i+1}</div>
+        <div style="flex:1">
+          <div style="font-size:13px;font-weight:700">${name}</div>
+          <div class="bar-wrap" style="margin-top:4px"><div class="bar-fill" style="width:${Math.round(cnt/maxCnt*100)}%"></div></div>
+        </div>
+        <div class="rank-cnt">${cnt}個</div>
+        <div class="rank-amt">¥${total.toLocaleString()}</div>
+      </div>
+    `).join('');
+  }
+
+  // step avg (from GAS steps sheet — use local orders for demo)
+  // We show placeholder unless real step data is available
+  const grid = document.getElementById('step-stat-grid');
+  grid.innerHTML = STEPS.map((st,si) => `
+    <div class="step-stat-card">
+      <div class="ssc-who" style="color:${st.color}">${st.who}</div>
+      <div class="ssc-label">${st.label}</div>
+      <div class="ssc-val">--</div>
+      <div class="ssc-unit">分(実績)</div>
+    </div>
+  `).join('');
+}
+
+/* ---- MASTER ---- */
+function renderMaster() {
+  const g = document.getElementById('pgrid');
+  if (!S.products.length) {
+    g.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:30px;color:var(--creamd)">商品を追加してください</div>`;
+    return;
+  }
+  g.innerHTML = '';
+  S.products.forEach(p => {
+    const card = document.createElement('div');
+    card.className = 'pcard';
+    const stepsHtml = STEPS.map((st,si) => `
+      <div class="pcard-step-row">
+        <div class="pcard-step-dot" style="background:${st.color}"></div>
+        <div class="pcard-step-name">${st.label}</div>
+        <div class="pcard-step-min">${p.stepTimes?.[si]||0}分</div>
+      </div>
+    `).join('');
+    card.innerHTML = `
+      <div class="pcard-btns">
+        <div class="ico-btn" onclick="editProduct('${p.id}')">✏️</div>
+        <div class="ico-btn del" onclick="confirmDeleteProduct('${p.id}')">🗑</div>
+      </div>
+      <div class="pcard-name">${p.name}</div>
+      <div class="pcard-price">¥${Number(p.price||0).toLocaleString()} / 計${p.totalMinutes||0}分</div>
+      <div class="pcard-steps">${stepsHtml}</div>
+    `;
+    g.appendChild(card);
+  });
+}
+
+// ================================================================
+//  STEP TAP
+// ================================================================
+async function tapStep(btn) {
+  const oid   = btn.dataset.oid;
+  const iid   = btn.dataset.iid;
+  const sdid  = btn.dataset.sdid;
+  const si    = parseInt(btn.dataset.s);
+  const order = S.orders.find(o => o.id === oid);
+  if (!order) return;
+  const item  = (order.items||[]).find(x => x.id === iid);
+  if (!item)  return;
+
+  const sd = item.steps.find(x => x.id === sdid);
+  if (!sd) return;
+
+  const curStep = item.steps.findIndex(s => !s.done);
+  if (!sd.done && si > curStep) { toast('前のステップを先に完了してください'); return; }
+
+  const now = new Date().toISOString();
+
+  if (sd.done) {
+    // revert this and all subsequent
+    for (let i = si; i < N; i++) {
+      const s2 = item.steps.find(x => x.stepIndex === i);
+      if (s2) s2.done = false;
+    }
+    await api('updateStep', { stepId: sd.id, done: false });
+  } else {
+    sd.done = true;
+    sd.completedAt = now;
+    if (!sd.startedAt) sd.startedAt = now;
+    await api('updateStep', { stepId: sd.id, done: true, completedAt: now, startedAt: sd.startedAt || now });
+
+    // 次ステップのstartedAtを記録
+    const nextSd = item.steps.find(x => x.stepIndex === si + 1);
+    if (nextSd && !nextSd.startedAt) {
+      nextSd.startedAt = now;
+      await api('updateStep', { stepId: nextSd.id, done: false, startedAt: now });
+    }
+
+    // 全ステップ完了？
+    const allItemsDone = (order.items||[]).every(it => it.steps.every(s => s.done));
+    if (allItemsDone) {
+      const items4hist = (order.items||[]).map(it => {
+        const pr = S.products.find(x => x.id === it.pid);
+        return { pid: it.pid, productName: pr?.name||'', price: it.price||pr?.price||0, paymentMethod: it.paymentMethod||'' };
+      });
+      await api('completeOrder', {
+        orderId: order.id, num: order.num,
+        completedAt: now, deliveryType: order.deliveryType,
+        items: items4hist,
+      });
+      S.orders = S.orders.filter(o => o.id !== oid);
+      toast(`✅ #${String(order.num).padStart(3,'0')} 全完了！`);
+    } else {
+      const nextItem = (order.items||[]).find(it => !it.steps.every(s => s.done));
+      if (nextItem) {
+        const ns = nextItem.steps.findIndex(s => !s.done);
+        if (ns >= 0) toast(`→ ${STEPS[ns].label}（${STEPS[ns].who}）`);
+      }
+    }
+  }
+
+  renderOrders(); updateWait();
+}
+
+// ================================================================
+//  NEW / EDIT ORDER
+// ================================================================
+document.getElementById('btn-new').addEventListener('click', () => openNewOrder());
+
+function openNewOrder() {
+  T.editOrderId = null;
+  T.selProds = {};
+  T.delivery = 'same-day';
+  document.getElementById('order-modal-title').textContent = '新規注文受付';
+  document.getElementById('inp-num').value  = '';
+  document.getElementById('inp-note').value = '';
+  setSegDelivery('same-day');
+  renderPPick();
+  document.getElementById('qty-block').style.display = 'none';
+  openOverlay('ov-order');
+}
+
+function openEditOrder(oid) {
+  const o = S.orders.find(x => x.id === oid);
+  if (!o) return;
+  T.editOrderId = oid;
+  T.delivery    = o.deliveryType;
+  document.getElementById('order-modal-title').textContent = '注文を編集';
+  document.getElementById('inp-num').value  = o.num;
+  document.getElementById('inp-note').value = o.note || '';
+  setSegDelivery(o.deliveryType);
+  // Reconstruct selProds
+  T.selProds = {};
+  (o.items||[]).forEach(it => { T.selProds[it.pid] = (T.selProds[it.pid]||0)+1; });
+  renderPPick();
+  renderQtyBlock();
+  openOverlay('ov-order');
+}
+
+// seg delivery
+document.getElementById('seg-delivery').querySelectorAll('.seg-btn').forEach(b => {
+  b.addEventListener('click', () => setSegDelivery(b.dataset.val));
+});
+function setSegDelivery(val) {
+  T.delivery = val;
+  document.getElementById('seg-delivery').querySelectorAll('.seg-btn').forEach(b => {
+    b.classList.toggle('on', b.dataset.val === val);
+  });
+}
+
+function renderPPick() {
+  const el = document.getElementById('ppick');
+  el.innerHTML = '';
+  S.products.forEach(p => {
+    const on = (T.selProds[p.id]||0) > 0;
+    const b = document.createElement('div');
+    b.className = `pp${on?' on':''}`;
+    b.innerHTML = `<div class="pp-name">${p.name}</div><div class="pp-sub">約${p.totalMinutes}分 ¥${Number(p.price||0).toLocaleString()}</div>`;
+    b.addEventListener('click', () => {
+      if ((T.selProds[p.id]||0) > 0) delete T.selProds[p.id];
+      else T.selProds[p.id] = 1;
+      renderPPick(); renderQtyBlock();
+    });
+    el.appendChild(b);
+  });
+}
+
+function renderQtyBlock() {
+  const sel = Object.keys(T.selProds).filter(k => T.selProds[k] > 0);
+  const block = document.getElementById('qty-block');
+  if (!sel.length) { block.style.display='none'; return; }
+  block.style.display = '';
+
+  const qs = document.getElementById('qty-section');
+  qs.innerHTML = '';
+  sel.forEach(pid => {
+    const p = S.products.find(x => x.id === pid);
+    if (!p) return;
+    const row = document.createElement('div');
+    row.className = 'qty-row';
+    row.innerHTML = `
+      <div class="qty-name">${p.name}</div>
+      <div class="qty-ctrl">
+        <button class="qbtn" data-pid="${pid}" data-d="-1">－</button>
+        <div class="qval" id="qv-${pid}">${T.selProds[pid]}</div>
+        <button class="qbtn" data-pid="${pid}" data-d="1">＋</button>
+      </div>
+    `;
+    row.querySelectorAll('.qbtn').forEach(b => {
+      b.addEventListener('click', () => {
+        const d = parseInt(b.dataset.d);
+        T.selProds[pid] = Math.max(1, (T.selProds[pid]||1)+d);
+        document.getElementById(`qv-${pid}`).textContent = T.selProds[pid];
+      });
+    });
+    qs.appendChild(row);
+  });
+
+  // payment block
+  const pb = document.getElementById('pay-block');
+  pb.innerHTML = `<div class="pay-pick">
+    <div class="pay-btn on" data-pay="cash" onclick="setOrderPay(this,'cash')">💴 現金</div>
+    <div class="pay-btn" data-pay="airpay" onclick="setOrderPay(this,'airpay')">💳 Airpay</div>
+    <div class="pay-btn" data-pay="paypay" onclick="setOrderPay(this,'paypay')">📱 PayPay</div>
+  </div><div style="font-size:10px;color:var(--creamd)">※ 注文全体の支払い方法。商品ごとに変更する場合は受付後に編集できます</div>`;
+  T.itemPayment = 'cash';
+}
+
+let orderPayment = 'cash';
+function setOrderPay(el, val) {
+  orderPayment = val;
+  document.querySelectorAll('#pay-block .pay-btn').forEach(b => b.classList.toggle('on', b.dataset.pay===val));
+}
+
+document.getElementById('order-cancel').addEventListener('click', () => closeOverlay('ov-order'));
+document.getElementById('order-ok').addEventListener('click', saveOrder);
+
+async function saveOrder() {
+  const numRaw = document.getElementById('inp-num').value.trim();
+  if (!numRaw) { toast('受付番号を入力してください'); return; }
+  const num  = parseInt(numRaw);
+  const note = document.getElementById('inp-note').value.trim();
+  const sel  = Object.entries(T.selProds).filter(([,q])=>q>0);
+
+  if (T.editOrderId) {
+    // edit mode
+    await api('updateOrder', { orderId: T.editOrderId, num, note, deliveryType: T.delivery });
+    const o = S.orders.find(x => x.id === T.editOrderId);
+    if (o) { o.num=num; o.note=note; o.deliveryType=T.delivery; }
+    toast('更新しました');
+    closeOverlay('ov-order');
+    renderOrders(); updateWait();
+    return;
+  }
+
+  if (!sel.length) { toast('商品を選択してください'); return; }
+
+  const orderId = uid();
+  const now     = new Date().toISOString();
+  const items   = [];
+
+  sel.forEach(([pid, qty]) => {
+    for (let i = 0; i < qty; i++) {
+      const iid = uid();
+      const stepDefs = STEPS.map((_,si) => ({ id:uid(), itemId:iid, stepIndex:si, done:false, startedAt:'', completedAt:'', durationMins:0 }));
+      const p = S.products.find(x=>x.id===pid);
+      items.push({
+        id:iid, pid, idx:i, totalOf:qty,
+        skipBinarize: false, skipDesign: false,
+        price: p?.price || 0,
+        paymentMethod: orderPayment,
+        steps: stepDefs,
+        stepDefs,
+      });
+    }
+  });
+
+  const order = { id:orderId, num, note, deliveryType:T.delivery, createdAt:now, status:'active', items };
+  S.orders.push(order);
+  closeOverlay('ov-order');
+  renderOrders(); updateWait();
+
+  await api('saveOrder', { order: { ...order, items: items.map(it=>({...it})) } });
+  toast(`📋 #${String(num).padStart(3,'0')} 受付しました`);
+}
+
+// ================================================================
+//  EDIT ITEM (price / skip / payment)
+// ================================================================
+function openEditItem(oid) {
+  const o = S.orders.find(x => x.id === oid);
+  if (!o || !(o.items||[]).length) return;
+
+  // for simplicity open first item; if multiple let user pick
+  const it = o.items[0];
+  T.editItemId = it.id;
+  T.editOrderIdForItem = oid;
+  T.skipBinarize = it.skipBinarize || false;
+  T.skipDesign   = it.skipDesign   || false;
+  T.itemPayment  = it.paymentMethod || 'cash';
+  T.itemPrice    = it.price;
+
+  const p = S.products.find(x => x.id === it.pid);
+  document.getElementById('item-modal-title').textContent = `${p?.name||''} を編集`;
+  document.getElementById('inp-item-price').value = it.price || p?.price || 0;
+
+  document.getElementById('tog-binarize').className = `tog${T.skipBinarize?' on':''}`;
+  document.getElementById('tog-design').className   = `tog${T.skipDesign  ?' on':''}`;
+  document.querySelectorAll('#item-pay-pick .pay-btn').forEach(b => b.classList.toggle('on', b.dataset.pay===T.itemPayment));
+
+  openOverlay('ov-item');
+}
+
+document.getElementById('tog-binarize').addEventListener('click', function() {
+  T.skipBinarize = !T.skipBinarize;
+  this.classList.toggle('on', T.skipBinarize);
+});
+document.getElementById('tog-design').addEventListener('click', function() {
+  T.skipDesign = !T.skipDesign;
+  this.classList.toggle('on', T.skipDesign);
+});
+document.querySelectorAll('#item-pay-pick .pay-btn').forEach(b => {
+  b.addEventListener('click', () => {
+    T.itemPayment = b.dataset.pay;
+    document.querySelectorAll('#item-pay-pick .pay-btn').forEach(x => x.classList.toggle('on', x===b));
+  });
+});
+
+document.getElementById('item-cancel').addEventListener('click', () => closeOverlay('ov-item'));
+document.getElementById('item-ok').addEventListener('click', async () => {
+  const price = parseInt(document.getElementById('inp-item-price').value) || 0;
+  // apply to all items of the order
+  const o = S.orders.find(x => x.id === T.editOrderIdForItem);
+  if (o) {
+    (o.items||[]).forEach(it => {
+      it.skipBinarize  = T.skipBinarize;
+      it.skipDesign    = T.skipDesign;
+      it.paymentMethod = T.itemPayment;
+      it.price         = price;
+    });
+  }
+  // update first item in GAS
+  await api('updateItem', { itemId: T.editItemId, price, skipBinarize: T.skipBinarize, skipDesign: T.skipDesign, paymentMethod: T.itemPayment });
+  closeOverlay('ov-item');
+  renderOrders(); updateWait();
+  toast('更新しました');
+});
+
+// ================================================================
+//  DELETE
+// ================================================================
+function confirmDeleteOrder(oid) {
+  const o = S.orders.find(x => x.id === oid);
+  showConfirm(`#${String(o?.num||'').padStart(3,'0')} を削除しますか？`, '削除後は元に戻せません', async () => {
+    S.orders = S.orders.filter(x => x.id !== oid);
+    renderOrders(); updateWait();
+    await api('deleteOrder', { orderId: oid });
+    toast('削除しました');
+  });
+}
+
+function confirmDeleteHistory(hid, oid) {
+  showConfirm('履歴を削除しますか？', '売上データも削除されます', async () => {
+    historyData = historyData.filter(x => x.id !== hid);
+    renderHistory();
+    await api('deleteHistory', { historyId: hid, orderId: oid });
+    toast('削除しました');
+  });
+}
+
+function confirmDeleteProduct(pid) {
+  const p = S.products.find(x => x.id === pid);
+  showConfirm(`「${p?.name}」を削除しますか？`, '削除後は元に戻せません', async () => {
+    S.products = S.products.filter(x => x.id !== pid);
+    renderMaster();
+    await api('deleteProduct', { productId: pid });
+    toast('削除しました');
+  });
+}
+
+// ================================================================
+//  PRODUCT MASTER MODAL
+// ================================================================
+function buildStepTimeGrid() {
+  const g = document.getElementById('step-time-grid');
+  g.innerHTML = '';
+  STEPS.forEach((st, si) => {
+    const val = T.stepTimes[si] ?? 5;
+    const row = document.createElement('div');
+    row.className = 'str';
+    row.innerHTML = `
+      <div class="str-dot" style="background:${st.color}"></div>
+      <div class="str-lbl">${st.label}</div>
+      <div class="str-who" style="color:${st.color}">${st.who}</div>
+      <div class="str-ctrl">
+        <button class="stb" data-si="${si}" data-d="-1">－</button>
+        <div class="stv" id="stv-${si}">${val}分</div>
+        <button class="stb" data-si="${si}" data-d="1">＋</button>
+      </div>
+    `;
+    row.querySelectorAll('.stb').forEach(b => {
+      b.addEventListener('click', () => {
+        const d  = parseInt(b.dataset.d);
+        const s2 = parseInt(b.dataset.si);
+        T.stepTimes[s2] = Math.max(0, (T.stepTimes[s2]??5) + d);
+        document.getElementById(`stv-${s2}`).textContent = T.stepTimes[s2] + '分';
+      });
+    });
+    g.appendChild(row);
+  });
+}
+
+document.getElementById('btn-add-product').addEventListener('click', () => {
+  T.editPid = null;
+  T.stepTimes = {};
+  STEPS.forEach((_,si) => T.stepTimes[si] = 5);
+  document.getElementById('prod-title').textContent = '商品追加';
+  document.getElementById('inp-pname').value  = '';
+  document.getElementById('inp-pprice').value = '';
+  buildStepTimeGrid();
+  openOverlay('ov-product');
+});
+
+function editProduct(pid) {
+  const p = S.products.find(x => x.id === pid);
+  if (!p) return;
+  T.editPid   = pid;
+  T.stepTimes = { ...p.stepTimes };
+  document.getElementById('prod-title').textContent = '商品を編集';
+  document.getElementById('inp-pname').value  = p.name;
+  document.getElementById('inp-pprice').value = p.price || '';
+  buildStepTimeGrid();
+  openOverlay('ov-product');
+}
+
+document.getElementById('prod-cancel').addEventListener('click', () => closeOverlay('ov-product'));
+document.getElementById('prod-ok').addEventListener('click', async () => {
+  const name  = document.getElementById('inp-pname').value.trim();
+  if (!name) { toast('商品名を入力してください'); return; }
+  const price = parseInt(document.getElementById('inp-pprice').value) || 0;
+  const total = Object.values(T.stepTimes).reduce((s,v)=>s+Number(v),0);
+  const pid   = T.editPid || uid();
+  const product = { id:pid, name, price, stepTimes:T.stepTimes, totalMinutes:total };
+
+  if (T.editPid) {
+    const idx = S.products.findIndex(x => x.id === pid);
+    if (idx >= 0) S.products[idx] = product;
+  } else {
+    S.products.push(product);
+  }
+  renderMaster();
+  closeOverlay('ov-product');
+  await api('saveProduct', { product: { ...product, stepTimesJson: undefined } });
+  toast(T.editPid ? '更新しました' : '商品を追加しました');
+});
+
+// ================================================================
+//  CALENDAR NAV
+// ================================================================
+document.getElementById('cal-prev').addEventListener('click', () => {
+  calMonth--; if (calMonth<1){calMonth=12;calYear--;}
+  historyData = [];
+  renderHistory();
+});
+document.getElementById('cal-next').addEventListener('click', () => {
+  calMonth++; if (calMonth>12){calMonth=1;calYear++;}
+  historyData = [];
+  renderHistory();
+});
+document.getElementById('an-prev').addEventListener('click', () => {
+  anMonth--; if (anMonth<1){anMonth=12;anYear--;}
+  renderAnalytics();
+});
+document.getElementById('an-next').addEventListener('click', () => {
+  anMonth++; if (anMonth>12){anMonth=1;anYear++;}
+  renderAnalytics();
+});
+
+// ================================================================
+//  ANALYTICS CSV
+// ================================================================
+document.getElementById('csv-btn').addEventListener('click', async () => {
+  const res = await api('exportCSV', {});
+  if (res?.url) window.open(res.url, '_blank');
+});
+
+// ================================================================
+//  TABS
+// ================================================================
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
+    document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
+    tab.classList.add('on');
+    document.getElementById('page-'+tab.dataset.tab).classList.add('on');
+    if (tab.dataset.tab==='history')   { historyData=[]; renderHistory(); }
+    if (tab.dataset.tab==='analytics') renderAnalytics();
+  });
+});
+
+// ================================================================
+//  OVERLAY / CONFIRM / TOAST
+// ================================================================
+function openOverlay(id)  { document.getElementById(id).classList.add('on'); }
+function closeOverlay(id) { document.getElementById(id).classList.remove('on'); }
+
+document.querySelectorAll('.overlay').forEach(ov => {
+  ov.addEventListener('click', e => { if(e.target===ov) ov.classList.remove('on'); });
+});
+
+let _cfCb = null;
+function showConfirm(title, sub, cb) {
+  document.getElementById('cf-title').textContent = title;
+  document.getElementById('cf-sub').textContent   = sub;
+  _cfCb = cb;
+  openOverlay('ov-confirm');
+}
+document.getElementById('cf-cancel').addEventListener('click', () => closeOverlay('ov-confirm'));
+document.getElementById('cf-ok').addEventListener('click', () => { closeOverlay('ov-confirm'); if(_cfCb) _cfCb(); });
+
+let _toastT;
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('on');
+  clearTimeout(_toastT);
+  _toastT = setTimeout(() => t.classList.remove('on'), 2700);
+}
+
+function showLoading(on) {
+  document.getElementById('loading').classList.toggle('on', on);
+}
+
+// ================================================================
+//  HELPERS
+// ================================================================
+function uid() { return Math.random().toString(36).slice(2,9) + Date.now().toString(36); }
+function fmt(d) {
+  if (!d) return '--:--';
+  const dt = new Date(d);
+  return String(dt.getHours()).padStart(2,'0')+':'+String(dt.getMinutes()).padStart(2,'0');
+}
+function elapsedStr(d) {
+  const m = Math.floor((Date.now()-new Date(d))/60000);
+  return m<60?`${m}分経過`:`${Math.floor(m/60)}時間${m%60}分経過`;
+}
+</script>
+</body>
+</html>
