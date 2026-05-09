@@ -918,13 +918,13 @@ let T = {
 async function api(action, data={}) {
   showLoading(true);
   try {
-    const payload = { action, token, ...data };
-    // 全リクエストをGETで送る（CORSエラー回避）
-    const params = new URLSearchParams({ 
-      action, 
-      token,
-      d: JSON.stringify(data)  // データはdパラメータにJSON化して渡す
-    });
+    // authはpasswordを直接パラメータで送る
+    let params;
+    if (action === 'auth') {
+      params = new URLSearchParams({ action, password: data.password || '' });
+    } else {
+      params = new URLSearchParams({ action, token, d: JSON.stringify(data) });
+    }
     const r = await fetch(`${GAS_URL}?${params}`);
     const j = await r.json();
     if (!j.ok) throw new Error(j.error);
