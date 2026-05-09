@@ -912,26 +912,23 @@ let T = {
 };
 
 // ================================================================
-//  GAS API
+//  GAS API — GETのみ使用（CORS対策）
+//  データはJSONエンコードしてdパラメータで送信
 // ================================================================
 async function api(action, data={}) {
   showLoading(true);
   try {
-    if (['getAll','getHistory','auth'].includes(action)) {
-      const params = new URLSearchParams({ action, token, ...data });
-      const r = await fetch(`${GAS_URL}?${params}`);
-      const j = await r.json();
-      if (!j.ok) throw new Error(j.error);
-      return j.data;
-    } else {
-      const r = await fetch(GAS_URL, {
-        method:'POST', body: JSON.stringify({ action, token, ...data }),
-        headers:{'Content-Type':'application/json'},
-      });
-      const j = await r.json();
-      if (!j.ok) throw new Error(j.error);
-      return j.data;
-    }
+    const payload = { action, token, ...data };
+    // 全リクエストをGETで送る（CORSエラー回避）
+    const params = new URLSearchParams({ 
+      action, 
+      token,
+      d: JSON.stringify(data)  // データはdパラメータにJSON化して渡す
+    });
+    const r = await fetch(`${GAS_URL}?${params}`);
+    const j = await r.json();
+    if (!j.ok) throw new Error(j.error);
+    return j.data;
   } catch(e) {
     toast('❌ ' + e.message);
     return null;
