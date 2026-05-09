@@ -1624,37 +1624,33 @@ async function saveOrder() {
 
   const order = { id:orderId, num, note, deliveryType:T.delivery, createdAt:now, status:'active', items };
 
-  // GASに分割して保存（注文ヘッダー→item個別→step個別）
   isSaving = true;
   closeOverlay('ov-order');
   toast('⏳ 受付登録中...');
 
   try {
-    // 1. 注文ヘッダーを保存（itemsなし）
-    const headerSaved = await api('saveOrderHeader', {
+    // 軽量化したデータをGASに1回で送る
+    // stepDefsはGAS側で生成するのでIDだけ渡す
+    const lightItems = items.map(it => ({
+      id: it.id,
+      pid: it.pid,
+      idx: it.idx,
+      totalOf: it.totalOf,
+      price: it.price,
+      paymentMethod: it.paymentMethod,
+      // stepIDsだけ渡す（GAS側でstepsシートに書く）
+      stepIds: it.stepDefs.map(sd => sd.id)
+    }));
+
+    const payload = {
       id: orderId, num, note,
       deliveryType: T.delivery,
-      createdAt: now
-    });
-    if (!headerSaved) throw new Error('ヘッダー保存失敗');
+      createdAt: now,
+      items: lightItems
+    };
 
-    // 2. itemを1つずつ保存
-    for (const it of items) {
-      const itemSaved = await api('saveOrderItem', {
-        id: it.id, orderId, pid: it.pid,
-        idx: it.idx, totalOf: it.totalOf,
-        skipBinarize: false, skipDesign: false,
-        price: it.price, paymentMethod: it.paymentMethod
-      });
-      if (!itemSaved) throw new Error('アイテム保存失敗');
-
-      // 3. stepを1つずつ保存
-      for (const sd of it.stepDefs) {
-        await api('saveOrderStep', {
-          id: sd.id, itemId: it.id, stepIndex: sd.stepIndex
-        });
-      }
-    }
+    const saved = await api('saveOrderFast', payload);
+    if (!saved) throw new Error('保存失敗');
 
     isSaving = false;
     S.orders.push(order);
