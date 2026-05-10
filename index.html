@@ -698,8 +698,8 @@ body{
 </div>
 
 <nav class="tabs">
-  <div class="tab on"  data-tab="orders">📋 当日注文</div>
-  <div class="tab"     data-tab="shipping">📦 郵送管理</div>
+  <div class="tab on"  data-tab="orders">🏪 現地</div>
+  <div class="tab"     data-tab="shipping">📦 郵送</div>
   <div class="tab"     data-tab="history">📅 履歴</div>
   <div class="tab"     data-tab="analytics">📊 売上</div>
   <div class="tab"     data-tab="master">⚙️ 商品</div>
@@ -707,7 +707,7 @@ body{
 
 <!-- PAGE: ORDERS -->
 <div class="page on" id="page-orders">
-  <button class="btn-new" id="btn-new">＋ 当日渡し注文を受け付ける</button>
+  <button class="btn-new" id="btn-new">＋ 現地注文を受け付ける</button>
   <div id="orders-list"></div>
 </div>
 
@@ -1155,7 +1155,7 @@ function renderOrders() {
   // 当日渡しのみ
   const active = S.orders.filter(o => o.status !== 'done' && o.deliveryType === 'same-day');
   if (!active.length) {
-    el.innerHTML = `<div class="empty"><div class="empty-ico">🔆</div>当日渡しの注文はありません</div>`;
+    el.innerHTML = `<div class="empty"><div class="empty-ico">🔆</div>現地注文はありません</div>`;
     return;
   }
   el.innerHTML = '';
@@ -1697,7 +1697,7 @@ function openNewOrder(deliveryType) {
   T.editOrderId = null;
   T.selProds = {};
   T.delivery = deliveryType;
-  document.getElementById('order-modal-title').textContent = deliveryType === 'shipping' ? '郵送注文受付' : '当日渡し注文受付';
+  document.getElementById('order-modal-title').textContent = deliveryType === 'shipping' ? '郵送注文受付' : '現地注文受付';
   document.getElementById('inp-note').value = '';
   setSegDelivery(deliveryType);
   renderPPick();
