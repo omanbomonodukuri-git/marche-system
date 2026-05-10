@@ -1056,8 +1056,8 @@ async function doLogin() {
 }
 
 async function tryAutoLogin() {
-  const saved    = localStorage.getItem('mb_token');
-  const expStr   = localStorage.getItem('mb_token_exp');
+  const saved  = localStorage.getItem('mb_token');
+  const expStr = localStorage.getItem('mb_token_exp');
   if (!saved || !expStr) return false;
   if (Date.now() > parseInt(expStr)) {
     localStorage.removeItem('mb_token');
@@ -1065,7 +1065,26 @@ async function tryAutoLogin() {
     return false;
   }
   token = saved;
-  return true;
+  // GASでトークンが有効か確認（getAllで検証）
+  showLoading(true);
+  try {
+    const params = new URLSearchParams({ action: 'ping', token });
+    const r = await fetch(`${GAS_URL}?${params}`);
+    const j = await r.json();
+    showLoading(false);
+    if (!j.ok) {
+      // トークン無効 → localStorageをクリアしてログイン画面へ
+      localStorage.removeItem('mb_token');
+      localStorage.removeItem('mb_token_exp');
+      token = '';
+      return false;
+    }
+    return true;
+  } catch(e) {
+    showLoading(false);
+    // 通信エラーの場合はlocalStorageのトークンを信頼して続行
+    return true;
+  }
 }
 
 async function showApp() {
