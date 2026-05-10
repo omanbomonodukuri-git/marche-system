@@ -676,7 +676,7 @@ body{
   <div class="hdr-pills">
     <div class="pill">当日待ち <b id="st-wait">0</b></div>
     <div class="pill">作業中 <b id="st-wip">0</b></div>
-    <div class="pill">郵送 <b id="st-ship">0</b></div>
+    
   </div>
 </header>
 
@@ -698,7 +698,8 @@ body{
 </div>
 
 <nav class="tabs">
-  <div class="tab on"  data-tab="orders">📋 注文管理</div>
+  <div class="tab on"  data-tab="orders">📋 当日注文</div>
+  <div class="tab"     data-tab="shipping">📦 郵送管理</div>
   <div class="tab"     data-tab="history">📅 履歴</div>
   <div class="tab"     data-tab="analytics">📊 売上</div>
   <div class="tab"     data-tab="master">⚙️ 商品</div>
@@ -706,8 +707,14 @@ body{
 
 <!-- PAGE: ORDERS -->
 <div class="page on" id="page-orders">
-  <button class="btn-new" id="btn-new">＋ 新規注文を受け付ける</button>
+  <button class="btn-new" id="btn-new">＋ 当日渡し注文を受け付ける</button>
   <div id="orders-list"></div>
+</div>
+
+<!-- PAGE: SHIPPING -->
+<div class="page" id="page-shipping">
+  <button class="btn-new" id="btn-new-shipping" style="background:var(--blue);color:#fff">＋ 郵送注文を受け付ける</button>
+  <div id="shipping-list"></div>
 </div>
 
 <!-- PAGE: HISTORY -->
@@ -1080,7 +1087,7 @@ function startClock() {
 // ================================================================
 //  RENDER
 // ================================================================
-function render() { renderOrders(); updateWait(); renderMaster(); }
+function render() { renderOrders(); renderShipping(); updateWait(); renderMaster(); }
 
 /* ---- WAIT TIME ---- */
 function calcItemRemainingMins(item) {
@@ -1124,7 +1131,6 @@ function updateWait() {
 
   document.getElementById('st-wait').textContent = sdOrders.length;
   document.getElementById('st-wip').textContent  = wipOrders.length;
-  document.getElementById('st-ship').textContent = shOrders.length;
 
   const w = calcWait();
   const wn = document.getElementById('wbar-num');
@@ -1146,13 +1152,27 @@ function updateWait() {
 /* ---- ORDERS ---- */
 function renderOrders() {
   const el = document.getElementById('orders-list');
-  const active = S.orders.filter(o => o.status !== 'done');
+  // 当日渡しのみ
+  const active = S.orders.filter(o => o.status !== 'done' && o.deliveryType === 'same-day');
   if (!active.length) {
-    el.innerHTML = `<div class="empty"><div class="empty-ico">🔆</div>注文待機中</div>`;
+    el.innerHTML = `<div class="empty"><div class="empty-ico">🔆</div>当日渡しの注文はありません</div>`;
     return;
   }
   el.innerHTML = '';
   [...active].sort((a,b) => a.num - b.num).forEach(o => renderOrderCard(o, el));
+}
+
+function renderShipping() {
+  const el = document.getElementById('shipping-list');
+  if (!el) return;
+  // 郵送のみ（active + done両方表示、doneは薄く）
+  const orders = S.orders.filter(o => o.deliveryType === 'shipping' && o.status !== 'done');
+  if (!orders.length) {
+    el.innerHTML = `<div class="empty"><div class="empty-ico">📦</div>郵送注文はありません</div>`;
+    return;
+  }
+  el.innerHTML = '';
+  [...orders].sort((a,b) => a.num - b.num).forEach(o => renderOrderCard(o, el));
 }
 
 function itemTotalMins(item) {
@@ -1670,22 +1690,22 @@ function tapStep(btn) {
 // ================================================================
 //  NEW / EDIT ORDER
 // ================================================================
-document.getElementById('btn-new').addEventListener('click', () => openNewOrder());
+document.getElementById('btn-new').addEventListener('click', () => openNewOrder('same-day'));
 
-function openNewOrder() {
+function openNewOrder(deliveryType) {
+  deliveryType = deliveryType || 'same-day';
   T.editOrderId = null;
   T.selProds = {};
-  T.delivery = 'same-day';
-  document.getElementById('order-modal-title').textContent = '新規注文受付';
+  T.delivery = deliveryType;
+  document.getElementById('order-modal-title').textContent = deliveryType === 'shipping' ? '郵送注文受付' : '当日渡し注文受付';
   document.getElementById('inp-note').value = '';
-  setSegDelivery('same-day');
+  setSegDelivery(deliveryType);
   renderPPick();
   document.getElementById('qty-block').style.display = 'none';
   // 受付番号を自動入力（最大番号+1）
   const nextNum = calcNextOrderNum();
   document.getElementById('inp-num').value = nextNum;
   openOverlay('ov-order');
-  // 番号フィールドを選択状態にして手動修正しやすく
   setTimeout(() => {
     const inp = document.getElementById('inp-num');
     inp.select();
@@ -2099,7 +2119,14 @@ document.querySelectorAll('.tab').forEach(tab => {
     document.getElementById('page-'+tab.dataset.tab).classList.add('on');
     if (tab.dataset.tab==='history')   { historyData=[]; renderHistory(); }
     if (tab.dataset.tab==='analytics') renderAnalytics();
+    if (tab.dataset.tab==='shipping')  renderShipping();
   });
+});
+
+// 郵送注文ボタン
+document.addEventListener('DOMContentLoaded', () => {
+  const shipBtn = document.getElementById('btn-new-shipping');
+  if (shipBtn) shipBtn.addEventListener('click', () => openNewOrder('shipping'));
 });
 
 // ================================================================
