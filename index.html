@@ -1314,20 +1314,194 @@ async function renderHistory() {
 
     const card = document.createElement('div');
     card.className = 'hcard';
+    card.style.flexDirection = 'column';
+    card.style.gap = '0';
+
+    // 支払い別集計
+    const paySum = {};
+    (h.salesItems||[]).forEach(si => {
+      const pm = si.paymentMethod || 'cash';
+      paySum[pm] = (paySum[pm]||0) + Number(si.price||0);
+    });
+    const payStr = Object.entries(paySum).map(([k,v])=>`${PAY_LABELS[k]||k}:¥${v.toLocaleString()}`).join(' / ');
+
     card.innerHTML = `
-      <div class="hcard-check ${isShip?'hcard-ship':''}">${isShip?'📦':'✓'}</div>
-      <div style="flex:1;min-width:0">
-        <div class="hcard-num">#${String(h.num||'').padStart(3,'0')}</div>
-        <div class="hcard-items">${itemStr}</div>
-        <div class="hcard-wait">完了まで ${h.waitMinutes||'-'}分</div>
+      <div style="display:flex;align-items:flex-start;gap:10px;width:100%">
+        <div class="hcard-check ${isShip?'hcard-ship':''}">${isShip?'📦':'✓'}</div>
+        <div style="flex:1;min-width:0">
+          <div class="hcard-num">#${String(h.num||'').padStart(3,'0')} <span style="font-size:11px;font-weight:400;color:var(--creamd)">${isShip?'郵送':'当日渡し'}</span></div>
+          <div class="hcard-items">${itemStr}</div>
+          <div class="hcard-wait">完了まで ${h.waitMinutes||'-'}分 | ${payStr}</div>
+        </div>
+        <div class="hcard-meta">
+          <div class="hcard-time">${fmt(h.completedAt)}</div>
+          <div class="hcard-total">¥${htotal.toLocaleString()}</div>
+        </div>
       </div>
-      <div class="hcard-meta">
-        <div class="hcard-time">${fmt(h.completedAt)}</div>
-        <div class="hcard-total">¥${htotal.toLocaleString()}</div>
+      <div style="display:flex;gap:6px;margin-top:8px;width:100%">
+        <button class="act-btn" style="flex:1;font-size:12px" onclick="toggleHistDetail('${h.id}')">📋 内訳</button>
+        <button class="act-btn" style="flex:1;font-size:12px" onclick="openEditHistory('${h.id}')">✏️ 編集</button>
+        <button class="act-btn danger" style="font-size:12px;padding:6px 10px" onclick="confirmDeleteHistory('${h.id}','${h.orderId}')">🗑</button>
       </div>
-      <button class="hcard-del" onclick="confirmDeleteHistory('${h.id}','${h.orderId}')">🗑</button>
+      <div id="hdet-${h.id}" style="display:none;width:100%;margin-top:8px"></div>
     `;
     list.appendChild(card);
+  });
+}
+
+/* ---- HISTORY DETAIL / EDIT ---- */
+function toggleHistDetail(hid) {
+  const el = document.getElementById('hdet-' + hid);
+  if (!el) return;
+  if (el.style.display !== 'none') { el.style.display = 'none'; return; }
+
+  const h = historyData.find(x => x.id === hid);
+  if (!h) return;
+
+  // 商品内訳
+  let itemRows = (h.salesItems||[]).map((si,i) => `
+    <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)">
+      <div style="flex:1;font-size:13px;font-weight:600">${si.productName||'-'}</div>
+      <div style="font-size:12px;color:var(--creamd)">${PAY_LABELS[si.paymentMethod]||'現金'}</div>
+      <div style="font-size:13px;font-weight:700;color:var(--gold)">¥${Number(si.price||0).toLocaleString()}</div>
+    </div>
+  `).join('');
+
+  // 行程実績（stepsデータがあれば表示）
+  const stepRows = STEPS.map((st,si) => {
+    const dur = h['step'+si+'_dur'] || '--';
+    return `<div style="display:flex;align-items:center;gap:6px;padding:4px 0">
+      <div style="width:8px;height:8px;border-radius:50%;background:${st.color};flex-shrink:0"></div>
+      <div style="flex:1;font-size:11px;color:var(--creamd)">${st.label}</div>
+      <div style="font-size:11px;font-weight:600">${dur}分</div>
+    </div>`;
+  }).join('');
+
+  el.innerHTML = `
+    <div style="background:var(--s2);border-radius:8px;padding:10px 12px;border:1px solid var(--border)">
+      <div style="font-size:11px;font-weight:700;color:var(--creamd);margin-bottom:6px;letter-spacing:.05em">商品内訳</div>
+      ${itemRows}
+      <div style="font-size:11px;font-weight:700;color:var(--creamd);margin:10px 0 6px;letter-spacing:.05em">待ち時間実績</div>
+      <div style="background:var(--s1);border-radius:6px;padding:8px 10px;border:1px solid var(--border)">
+        <div style="font-size:13px;font-weight:700">完了まで ${h.waitMinutes||'-'} 分</div>
+      </div>
+      <div style="font-size:11px;font-weight:700;color:var(--creamd);margin:10px 0 6px;letter-spacing:.05em">行程別実績（参考）</div>
+      <div style="background:var(--s1);border-radius:6px;padding:8px 10px;border:1px solid var(--border)">
+        ${stepRows}
+        <div style="font-size:10px;color:var(--creamd);margin-top:4px">※行程別時間はステップ完了時に自動記録</div>
+      </div>
+    </div>
+  `;
+  el.style.display = 'block';
+}
+
+// 履歴編集モーダル
+let editingHistId = null;
+function openEditHistory(hid) {
+  const h = historyData.find(x => x.id === hid);
+  if (!h) return;
+  editingHistId = hid;
+
+  // モーダルがなければ作成
+  if (!document.getElementById('ov-hist-edit')) {
+    const ov = document.createElement('div');
+    ov.id = 'ov-hist-edit';
+    ov.className = 'overlay';
+    ov.innerHTML = `
+      <div class="sheet">
+        <div class="sh-title">履歴を編集</div>
+        <div class="sh-lbl">お渡し方法</div>
+        <div class="seg" id="hist-seg-delivery">
+          <div class="seg-btn" data-val="same-day">🏪 当日渡し</div>
+          <div class="seg-btn" data-val="shipping">📦 郵送</div>
+        </div>
+        <div class="sh-lbl">備考・メモ</div>
+        <textarea class="sh-textarea" id="hist-inp-note" placeholder="備考を入力"></textarea>
+        <div class="sh-lbl">商品ごとの価格・支払い方法</div>
+        <div id="hist-items-edit"></div>
+        <div class="sh-actions">
+          <button class="sh-cancel" onclick="closeOverlay('ov-hist-edit')">キャンセル</button>
+          <button class="sh-ok" onclick="saveHistEdit()">保存</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(ov);
+    ov.addEventListener('click', e => { if(e.target===ov) ov.classList.remove('on'); });
+    document.querySelectorAll('#hist-seg-delivery .seg-btn').forEach(b => {
+      b.addEventListener('click', () => {
+        document.querySelectorAll('#hist-seg-delivery .seg-btn').forEach(x=>x.classList.remove('on'));
+        b.classList.add('on');
+      });
+    });
+  }
+
+  // 値をセット
+  document.querySelectorAll('#hist-seg-delivery .seg-btn').forEach(b => {
+    b.classList.toggle('on', b.dataset.val === (h.deliveryType||'same-day'));
+  });
+  document.getElementById('hist-inp-note').value = h.note || '';
+
+  // 商品ごとの編集
+  const itemsEl = document.getElementById('hist-items-edit');
+  itemsEl.innerHTML = (h.salesItems||[]).map((si,i) => `
+    <div style="background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:6px">
+      <div style="font-size:13px;font-weight:700;margin-bottom:8px">${si.productName||'-'}</div>
+      <div class="sh-lbl">価格（円）</div>
+      <input class="sh-input" style="margin-bottom:8px" type="number" inputmode="numeric"
+        id="hist-price-${i}" value="${si.price||0}">
+      <div class="sh-lbl">支払い方法</div>
+      <div class="pay-pick" style="margin-bottom:0">
+        ${Object.entries(PAY_LABELS).map(([k,l])=>`
+          <div class="pay-btn${(si.paymentMethod||'cash')===k?' on':''}"
+            data-pay="${k}" data-idx="${i}"
+            onclick="setHistPay(this,${i},'${k}')">
+            ${k==='cash'?'💴':k==='airpay'?'💳':'📱'} ${l}
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `).join('');
+
+  openOverlay('ov-hist-edit');
+}
+
+function setHistPay(el, idx, val) {
+  document.querySelectorAll(`[data-idx="${idx}"]`).forEach(b => b.classList.toggle('on', b===el));
+}
+
+async function saveHistEdit() {
+  const h = historyData.find(x => x.id === editingHistId);
+  if (!h) return;
+
+  const delivery = document.querySelector('#hist-seg-delivery .seg-btn.on')?.dataset.val || h.deliveryType;
+  const note = document.getElementById('hist-inp-note').value.trim();
+
+  // 商品ごとの更新
+  (h.salesItems||[]).forEach((si, i) => {
+    const priceEl = document.getElementById(`hist-price-${i}`);
+    const payEl   = document.querySelector(`[data-idx="${i}"].pay-btn.on`);
+    if (priceEl) si.price = parseInt(priceEl.value) || si.price;
+    if (payEl)   si.paymentMethod = payEl.dataset.pay;
+  });
+
+  h.deliveryType = delivery;
+  h.note = note;
+
+  closeOverlay('ov-hist-edit');
+  historyData = [...historyData]; // trigger re-render
+  renderHistory();
+  toast('更新しました');
+
+  // GAS非同期保存
+  api('updateHistory', {
+    historyId: editingHistId,
+    deliveryType: delivery,
+    note,
+    salesItems: (h.salesItems||[]).map((si,i) => ({
+      id: si.id,
+      price: si.price,
+      paymentMethod: si.paymentMethod
+    }))
   });
 }
 
