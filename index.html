@@ -1424,25 +1424,32 @@ function tapStep(btn) {
   const sd = item.steps.find(x => x.id === sdid);
   if (!sd) return;
 
-  const curStep = item.steps.findIndex(s => !s.done);
-  if (!sd.done && si > curStep) { toast('前のステップを先に完了してください'); return; }
-
   const now = new Date().toISOString();
 
   if (sd.done) {
-    // 戻す
+    // タップ済みを戻す → そのステップ以降を全部戻す
     for (let i = si; i < N; i++) {
       const s2 = item.steps.find(x => x.stepIndex === i);
-      if (s2) s2.done = false;
+      if (s2) { s2.done = false; s2.completedAt = ''; }
     }
-    // 画面即時更新
     renderOrders(); updateWait();
-    // GASは非同期（待たない）
-    api('updateStep', { stepId: sd.id, done: false });
+    // GAS非同期
+    for (let i = si; i < N; i++) {
+      const s2 = item.steps.find(x => x.stepIndex === i);
+      if (s2) api('updateStep', { stepId: s2.id, done: false });
+    }
   } else {
-    sd.done = true;
-    sd.completedAt = now;
-    if (!sd.startedAt) sd.startedAt = now;
+    // タップしたステップとその前工程を全部チェック（スキップOK）
+    const updatedSteps = [];
+    for (let i = 0; i <= si; i++) {
+      const s2 = item.steps.find(x => x.stepIndex === i);
+      if (s2 && !s2.done) {
+        s2.done = true;
+        s2.completedAt = now;
+        if (!s2.startedAt) s2.startedAt = now;
+        updatedSteps.push(s2);
+      }
+    }
 
     // 次ステップのstartedAt
     const nextSd = item.steps.find(x => x.stepIndex === si + 1);
@@ -1451,7 +1458,6 @@ function tapStep(btn) {
     // 全完了チェック
     const allItemsDone = (order.items||[]).every(it => it.steps.every(s => s.done));
 
-    // 画面即時更新
     if (allItemsDone) {
       S.orders = S.orders.filter(o => o.id !== oid);
       toast(`✅ #${String(order.num).padStart(3,'0')} 全完了！`);
@@ -1464,8 +1470,10 @@ function tapStep(btn) {
     }
     renderOrders(); updateWait();
 
-    // GASは非同期（待たない）
-    api('updateStep', { stepId: sd.id, done: true, completedAt: now, startedAt: sd.startedAt || now });
+    // GAS非同期（更新されたステップを一括）
+    updatedSteps.forEach(s2 => {
+      api('updateStep', { stepId: s2.id, done: true, completedAt: now, startedAt: s2.startedAt || now });
+    });
     if (nextSd) api('updateStep', { stepId: nextSd.id, done: false, startedAt: now });
 
     if (allItemsDone) {
@@ -1492,12 +1500,29 @@ function openNewOrder() {
   T.selProds = {};
   T.delivery = 'same-day';
   document.getElementById('order-modal-title').textContent = '新規注文受付';
-  document.getElementById('inp-num').value  = '';
   document.getElementById('inp-note').value = '';
   setSegDelivery('same-day');
   renderPPick();
   document.getElementById('qty-block').style.display = 'none';
+  // 受付番号を自動入力（最大番号+1）
+  const nextNum = calcNextOrderNum();
+  document.getElementById('inp-num').value = nextNum;
   openOverlay('ov-order');
+  // 番号フィールドを選択状態にして手動修正しやすく
+  setTimeout(() => {
+    const inp = document.getElementById('inp-num');
+    inp.select();
+  }, 300);
+}
+
+function calcNextOrderNum() {
+  // アクティブ注文と履歴から最大番号を探して+1
+  let max = 0;
+  S.orders.forEach(o => { if (Number(o.num) > max) max = Number(o.num); });
+  // localStorageにも最後の番号を保存
+  const saved = parseInt(localStorage.getItem('mb_last_num') || '0');
+  if (saved > max) max = saved;
+  return max + 1;
 }
 
 function openEditOrder(oid) {
@@ -1622,7 +1647,15 @@ async function saveOrder() {
   sel.forEach(([pid, qty]) => {
     for (let i = 0; i < qty; i++) {
       const iid = uid();
-      const stepDefs = STEPS.map((_,si) => ({ id:uid(), itemId:iid, stepIndex:si, done:false, startedAt:'', completedAt:'', durationMins:0 }));
+      const now0 = new Date().toISOString();
+      // 受付(step0)は登録時に自動チェック
+      const stepDefs = STEPS.map((_,si) => ({
+        id: uid(), itemId: iid, stepIndex: si,
+        done: si === 0,  // 受付は最初からdone
+        startedAt: si === 0 ? now0 : '',
+        completedAt: si === 0 ? now0 : '',
+        durationMins: 0
+      }));
       const p = S.products.find(x=>x.id===pid);
       items.push({
         id:iid, pid, idx:i, totalOf:qty,
@@ -1651,8 +1684,10 @@ async function saveOrder() {
       totalOf: it.totalOf,
       price: it.price,
       paymentMethod: it.paymentMethod,
-      // stepIDsだけ渡す（GAS側でstepsシートに書く）
-      stepIds: it.stepDefs.map(sd => sd.id)
+      // stepIDsとstep0の完了情報を渡す
+      stepIds: it.stepDefs.map(sd => sd.id),
+      step0Done: true,  // 受付は自動チェック
+      step0At: it.stepDefs[0].completedAt
     }));
 
     const payload = {
@@ -1667,6 +1702,7 @@ async function saveOrder() {
 
     isSaving = false;
     S.orders.push(order);
+    localStorage.setItem('mb_last_num', String(num));
     renderOrders(); updateWait();
     toast(`✅ #${String(num).padStart(3,'0')} 受付しました`);
   } catch(e) {
