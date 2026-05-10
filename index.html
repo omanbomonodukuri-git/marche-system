@@ -735,23 +735,59 @@ body{
 
 <!-- PAGE: ANALYTICS -->
 <div class="page" id="page-analytics">
-  <div class="cal-nav" style="margin-bottom:10px">
+  <!-- 期間切り替え -->
+  <div class="seg" id="seg-period" style="margin-bottom:12px">
+    <div class="seg-btn on" data-val="day">日次</div>
+    <div class="seg-btn"    data-val="month">月次</div>
+    <div class="seg-btn"    data-val="year">年次</div>
+  </div>
+  <!-- 日付ナビ -->
+  <div class="cal-nav" style="margin-bottom:12px">
     <div class="cal-arrow" id="an-prev">‹</div>
-    <div class="cal-mon" id="an-mon">----年--月</div>
+    <div class="cal-mon"   id="an-mon">----</div>
     <div class="cal-arrow" id="an-next">›</div>
   </div>
+  <!-- サマリーカード -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+    <div class="cal-stat" style="grid-column:1/-1">
+      <div class="cal-stat-lbl" id="an-period-lbl">本日の売上</div>
+      <div class="cal-stat-val" id="an-total" style="font-size:28px">¥0</div>
+    </div>
+    <div class="cal-stat"><div class="cal-stat-val" id="an-cnt">0</div><div class="cal-stat-lbl">件数</div></div>
+    <div class="cal-stat"><div class="cal-stat-val" id="an-avg" style="font-size:18px">¥0</div><div class="cal-stat-lbl">平均単価</div></div>
+  </div>
+  <!-- 年間・月間サマリー（常時表示） -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+    <div class="cal-stat">
+      <div class="cal-stat-lbl">月間売上</div>
+      <div class="cal-stat-val" id="an-month-total" style="font-size:16px">¥0</div>
+    </div>
+    <div class="cal-stat">
+      <div class="cal-stat-lbl">年間売上</div>
+      <div class="cal-stat-val" id="an-year-total" style="font-size:16px">¥0</div>
+    </div>
+  </div>
+  <!-- チャネル別 -->
+  <div class="analytics-section">
+    <div class="an-title">▶ チャネル別売上</div>
+    <div id="channel-breakdown"></div>
+  </div>
+  <!-- 支払い方法別 -->
+  <div class="analytics-section">
+    <div class="an-title">▶ 支払い方法別</div>
+    <div class="pay-breakdown" id="an-pay-breakdown"></div>
+  </div>
+  <!-- 商品別ランキング -->
   <div class="analytics-section">
     <div class="an-title">▶ 商品別ランキング</div>
     <div id="rank-list"></div>
   </div>
+  <!-- 行程別 -->
   <div class="analytics-section">
     <div class="an-title">▶ 行程別 平均実績時間</div>
     <div class="step-stat-grid" id="step-stat-grid"></div>
-    <div style="font-size:10px;color:var(--creamd);margin-top:4px">※ 完了ステップの実績値。マスター更新の参考にしてください。</div>
   </div>
-  <div style="margin-top:10px">
-    <button class="act-btn" id="csv-btn" style="width:100%;padding:12px;font-size:13px">📥 Googleスプレッドシートで開く</button>
-  </div>
+  <button class="act-btn" id="csv-btn" style="width:100%;padding:12px;font-size:13px;margin-top:4px">📥 スプレッドシートで開く</button>
 </div>
 
 <!-- PAGE: MASTER -->
@@ -779,6 +815,13 @@ body{
   <div class="seg" id="seg-delivery">
     <div class="seg-btn on" data-val="same-day">🏪 当日渡し</div>
     <div class="seg-btn"    data-val="shipping">📦 郵送</div>
+  </div>
+
+  <div class="sh-lbl">販売チャネル</div>
+  <div class="seg" id="seg-channel">
+    <div class="seg-btn on" data-val="marche">🏕 マルシェ</div>
+    <div class="seg-btn"    data-val="net">🌐 ネット</div>
+    <div class="seg-btn"    data-val="sns">📱 SNS</div>
   </div>
 
   <div class="sh-lbl">注文商品（複数可）</div>
@@ -920,6 +963,7 @@ let T = {
   editOrderId: null,
   selProds: {},    // {pid: qty}
   delivery: 'same-day',
+  channel: 'marche',
   editItemId: null, editOrderIdForItem: null,
   skipBinarize: false, skipDesign: false,
   itemPayment: '',
@@ -927,6 +971,9 @@ let T = {
   editPid: null,
   stepTimes: {},   // {0:min, 1:min, ...}
 };
+
+const CHANNEL_LABELS = { marche:'マルシェ', net:'ネット', sns:'SNS' };
+const CHANNEL_ICONS  = { marche:'🏕', net:'🌐', sns:'📱' };
 
 // ================================================================
 //  GAS API — URLが長い場合はiframeを使わずに分割GET送信
@@ -1209,6 +1256,7 @@ function renderOrderCard(o, container) {
     <div class="och">
       <div class="och-num">#${String(o.num).padStart(3,'0')}</div>
       <span class="och-badge ${isSameDay?'badge-sd':'badge-sh'}">${isSameDay?'当日':'郵送'}</span>
+      ${o.channel?`<span class="och-badge" style="background:rgba(100,100,200,.12);color:#5555cc">${CHANNEL_ICONS[o.channel]||''} ${CHANNEL_LABELS[o.channel]||o.channel}</span>`:''}
       <div class="och-info">
         ${o.note?`<div class="och-note">📝 ${o.note}</div>`:''}
       </div>
@@ -1526,45 +1574,145 @@ async function saveHistEdit() {
 }
 
 /* ---- ANALYTICS ---- */
+let anPeriod = 'day';
+let anDay    = new Date().getDate();
+let anAllHistory = []; // 年間キャッシュ
+
+document.getElementById('seg-period').querySelectorAll('.seg-btn').forEach(b => {
+  b.addEventListener('click', () => {
+    document.querySelectorAll('#seg-period .seg-btn').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on');
+    anPeriod = b.dataset.val;
+    renderAnalytics();
+  });
+});
+document.getElementById('an-prev').addEventListener('click', () => {
+  if (anPeriod==='day')   { anDay--;   if(anDay<1){anMonth--;if(anMonth<1){anMonth=12;anYear--;}anDay=31;} }
+  if (anPeriod==='month') { anMonth--; if(anMonth<1){anMonth=12;anYear--;} }
+  if (anPeriod==='year')  { anYear--; }
+  anAllHistory = [];
+  renderAnalytics();
+});
+document.getElementById('an-next').addEventListener('click', () => {
+  if (anPeriod==='day')   { anDay++;   if(anDay>31){anDay=1;anMonth++;if(anMonth>12){anMonth=1;anYear++;}} }
+  if (anPeriod==='month') { anMonth++; if(anMonth>12){anMonth=1;anYear++;} }
+  if (anPeriod==='year')  { anYear++; }
+  anAllHistory = [];
+  renderAnalytics();
+});
+
 async function renderAnalytics() {
-  document.getElementById('an-mon').textContent = `${anYear}年${anMonth}月`;
+  // ナビゲーション表示
+  if (anPeriod==='day')   document.getElementById('an-mon').textContent = `${anYear}年${anMonth}月${anDay}日`;
+  if (anPeriod==='month') document.getElementById('an-mon').textContent = `${anYear}年${anMonth}月`;
+  if (anPeriod==='year')  document.getElementById('an-mon').textContent = `${anYear}年`;
 
-  const res = await api('getHistory', { year: anYear, month: anMonth });
-  if (!res) return;
-  const hist = res.history || [];
+  // 年間データ取得（キャッシュ）
+  if (!anAllHistory.length) {
+    const res = await api('getHistory', { year: anYear, month: '' });
+    if (!res) return;
+    anAllHistory = res.history || [];
+  }
 
-  // product ranking
-  const pMap = {}; // {name: {cnt, total}}
-  hist.forEach(h => {
+  // 期間でフィルタ
+  let filtered = anAllHistory;
+  if (anPeriod==='day') {
+    filtered = anAllHistory.filter(h => {
+      const d = new Date(h.completedAt);
+      return d.getFullYear()==anYear && (d.getMonth()+1)==anMonth && d.getDate()==anDay;
+    });
+  } else if (anPeriod==='month') {
+    filtered = anAllHistory.filter(h => {
+      const d = new Date(h.completedAt);
+      return d.getFullYear()==anYear && (d.getMonth()+1)==anMonth;
+    });
+  }
+
+  // 月間・年間は常時計算
+  const monthHist = anAllHistory.filter(h => {
+    const d = new Date(h.completedAt);
+    return d.getFullYear()==anYear && (d.getMonth()+1)==anMonth;
+  });
+  const yearHist = anAllHistory;
+
+  const sumSales = hist => hist.reduce((s,h)=>{
+    return s + (h.salesItems||[]).reduce((ss,si)=>ss+Number(si.price||0),0);
+  }, 0);
+
+  const periodTotal = sumSales(filtered);
+  const monthTotal  = sumSales(monthHist);
+  const yearTotal   = sumSales(yearHist);
+  const cnt         = filtered.length;
+  const avg         = cnt ? Math.round(periodTotal/cnt) : 0;
+
+  // 期間ラベル
+  const periodLbl = anPeriod==='day'?'本日の売上':anPeriod==='month'?'月間売上':'年間売上';
+  document.getElementById('an-period-lbl').textContent  = periodLbl;
+  document.getElementById('an-total').textContent       = `¥${periodTotal.toLocaleString()}`;
+  document.getElementById('an-cnt').textContent         = cnt;
+  document.getElementById('an-avg').textContent         = `¥${avg.toLocaleString()}`;
+  document.getElementById('an-month-total').textContent = `¥${monthTotal.toLocaleString()}`;
+  document.getElementById('an-year-total').textContent  = `¥${yearTotal.toLocaleString()}`;
+
+  // チャネル別
+  const chMap = { marche:0, net:0, sns:0 };
+  filtered.forEach(h => {
+    const ch = h.channel || 'marche';
+    chMap[ch] = (chMap[ch]||0) + (h.salesItems||[]).reduce((s,si)=>s+Number(si.price||0),0);
+  });
+  const chMax = Math.max(...Object.values(chMap), 1);
+  document.getElementById('channel-breakdown').innerHTML = Object.entries(CHANNEL_LABELS).map(([k,l]) => `
+    <div style="background:var(--s1);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:6px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+        <span style="font-size:13px;font-weight:700">${CHANNEL_ICONS[k]} ${l}</span>
+        <span style="font-size:14px;font-weight:700;color:var(--gold)">¥${(chMap[k]||0).toLocaleString()}</span>
+      </div>
+      <div class="bar-wrap"><div class="bar-fill" style="width:${Math.round((chMap[k]||0)/chMax*100)}%;background:${k==='marche'?'var(--gold)':k==='net'?'var(--blue)':'var(--pink)'}"></div></div>
+    </div>
+  `).join('');
+
+  // 支払い別
+  const payMap = { cash:0, airpay:0, paypay:0 };
+  filtered.forEach(h => {
+    (h.salesItems||[]).forEach(si => {
+      const p = si.paymentMethod||'cash';
+      payMap[p] = (payMap[p]||0) + Number(si.price||0);
+    });
+  });
+  document.getElementById('an-pay-breakdown').innerHTML = Object.entries(PAY_LABELS).map(([k,l]) => {
+    const pct = periodTotal ? Math.round((payMap[k]||0)/periodTotal*100) : 0;
+    return `<div class="pay-row">
+      <span class="pay-lbl">${l}</span>
+      <span class="pay-val">¥${(payMap[k]||0).toLocaleString()}<span class="pay-pct">${pct}%</span></span>
+    </div>`;
+  }).join('');
+
+  // 商品別ランキング
+  const pMap = {};
+  filtered.forEach(h => {
     (h.salesItems||[]).forEach(si => {
       if (!pMap[si.productName]) pMap[si.productName] = { cnt:0, total:0 };
       pMap[si.productName].cnt++;
       pMap[si.productName].total += Number(si.price||0);
     });
   });
-  const sorted = Object.entries(pMap).sort((a,b)=>b[1].cnt-a[1].cnt);
-  const maxCnt = sorted[0]?.[1]?.cnt || 1;
+  const sorted = Object.entries(pMap).sort((a,b)=>b[1].total-a[1].total);
+  const maxTotal = sorted[0]?.[1]?.total || 1;
   const rl = document.getElementById('rank-list');
-  if (!sorted.length) {
-    rl.innerHTML = `<div class="text-dim" style="font-size:12px;padding:10px">データなし</div>`;
-  } else {
-    rl.innerHTML = sorted.map(([name,{cnt,total}],i) => `
-      <div class="rank-row">
-        <div class="rank-pos">${i+1}</div>
-        <div style="flex:1">
-          <div style="font-size:13px;font-weight:700">${name}</div>
-          <div class="bar-wrap" style="margin-top:4px"><div class="bar-fill" style="width:${Math.round(cnt/maxCnt*100)}%"></div></div>
-        </div>
-        <div class="rank-cnt">${cnt}個</div>
-        <div class="rank-amt">¥${total.toLocaleString()}</div>
+  rl.innerHTML = sorted.length ? sorted.map(([name,{cnt,total}],i) => `
+    <div class="rank-row">
+      <div class="rank-pos">${i+1}</div>
+      <div style="flex:1">
+        <div style="font-size:13px;font-weight:700">${name}</div>
+        <div class="bar-wrap" style="margin-top:4px"><div class="bar-fill" style="width:${Math.round(total/maxTotal*100)}%"></div></div>
       </div>
-    `).join('');
-  }
+      <div class="rank-cnt">${cnt}個</div>
+      <div class="rank-amt">¥${total.toLocaleString()}</div>
+    </div>
+  `).join('') : `<div class="text-dim" style="font-size:12px;padding:10px">データなし</div>`;
 
-  // step avg (from GAS steps sheet — use local orders for demo)
-  // We show placeholder unless real step data is available
-  const grid = document.getElementById('step-stat-grid');
-  grid.innerHTML = STEPS.map((st,si) => `
+  // 行程別
+  document.getElementById('step-stat-grid').innerHTML = STEPS.map((st,si) => `
     <div class="step-stat-card">
       <div class="ssc-who" style="color:${st.color}">${st.who}</div>
       <div class="ssc-label">${st.label}</div>
@@ -1697,7 +1845,11 @@ function openNewOrder(deliveryType) {
   T.editOrderId = null;
   T.selProds = {};
   T.delivery = deliveryType;
+  // チャネルデフォルト：現地→マルシェ、郵送→ネット
+  T.channel = deliveryType === 'shipping' ? 'net' : 'marche';
   document.getElementById('order-modal-title').textContent = deliveryType === 'shipping' ? '郵送注文受付' : '現地注文受付';
+  // チャネルセグメント初期化
+  setTimeout(() => setSegChannel(T.channel), 50);
   document.getElementById('inp-note').value = '';
   setSegDelivery(deliveryType);
   renderPPick();
@@ -1746,6 +1898,19 @@ document.getElementById('seg-delivery').querySelectorAll('.seg-btn').forEach(b =
 function setSegDelivery(val) {
   T.delivery = val;
   document.getElementById('seg-delivery').querySelectorAll('.seg-btn').forEach(b => {
+    b.classList.toggle('on', b.dataset.val === val);
+  });
+  // 現地→マルシェ、郵送→ネットをデフォルトに
+  if (val === 'same-day') setSegChannel('marche');
+  else if (val === 'shipping' && T.channel === 'marche') setSegChannel('net');
+}
+
+document.getElementById('seg-channel').querySelectorAll('.seg-btn').forEach(b => {
+  b.addEventListener('click', () => setSegChannel(b.dataset.val));
+});
+function setSegChannel(val) {
+  T.channel = val;
+  document.getElementById('seg-channel').querySelectorAll('.seg-btn').forEach(b => {
     b.classList.toggle('on', b.dataset.val === val);
   });
 }
@@ -1865,7 +2030,7 @@ async function saveOrder() {
     }
   });
 
-  const order = { id:orderId, num, note, deliveryType:T.delivery, createdAt:now, status:'active', items };
+  const order = { id:orderId, num, note, deliveryType:T.delivery, channel:T.channel, createdAt:now, status:'active', items };
 
   isSaving = true;
   closeOverlay('ov-order');
@@ -1890,6 +2055,7 @@ async function saveOrder() {
     const payload = {
       id: orderId, num, note,
       deliveryType: T.delivery,
+      channel: T.channel,
       createdAt: now,
       items: lightItems
     };
@@ -2091,14 +2257,7 @@ document.getElementById('cal-next').addEventListener('click', () => {
   historyData = [];
   renderHistory();
 });
-document.getElementById('an-prev').addEventListener('click', () => {
-  anMonth--; if (anMonth<1){anMonth=12;anYear--;}
-  renderAnalytics();
-});
-document.getElementById('an-next').addEventListener('click', () => {
-  anMonth++; if (anMonth>12){anMonth=1;anYear++;}
-  renderAnalytics();
-});
+// an-nav handled in renderAnalytics section
 
 // ================================================================
 //  ANALYTICS CSV
