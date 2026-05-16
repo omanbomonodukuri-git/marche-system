@@ -340,10 +340,15 @@ body{background:var(--bg);color:var(--text);font-family:'Noto Sans JP',sans-seri
   <div class="hdr-logo">受注管理</div>
   <div class="hdr-clock" id="clock">--:--</div>
   <div class="hdr-pills">
-    <div class="pill">現地待ち <b id="st-loc">0</b></div>
+    <div class="pill">現地 <b id="st-loc">0</b></div>
     <div class="pill">作業中 <b id="st-wip">0</b></div>
     <div class="pill">郵送 <b id="st-ship">0</b></div>
   </div>
+  <button id="sync-btn" onclick="manualSync()" style="
+    background:var(--s2);border:1px solid var(--border);border-radius:8px;
+    padding:5px 10px;font-size:18px;cursor:pointer;margin-left:4px;
+    touch-action:manipulation;line-height:1;flex-shrink:0;
+  " title="データを更新">↺</button>
 </header>
 
 <div class="wbar">
@@ -646,7 +651,7 @@ let orderPayment = 'cash';
 // ============================================================
 //  GAS API
 // ============================================================
-async function api(action, data={}) {
+async function api(action, data={}, retry=1) {
   showLoading(true);
   try {
     let r;
@@ -654,24 +659,30 @@ async function api(action, data={}) {
       r = await fetch(`${GAS_URL}?action=auth&password=${encodeURIComponent(data.password||'')}`);
     } else {
       const dataStr = JSON.stringify(data);
-      const MAX = 1800;
+      const MAX = 1500; // より保守的なサイズ制限
       if (dataStr.length <= MAX) {
-        r = await fetch(`${GAS_URL}?action=${action}&token=${encodeURIComponent(token)}&d=${encodeURIComponent(dataStr)}`);
+        r = await fetch(`${GAS_URL}?action=${encodeURIComponent(action)}&token=${encodeURIComponent(token)}&d=${encodeURIComponent(dataStr)}`);
       } else {
         // 分割送信
         const sid = uid();
         const chunks = [];
         for (let i = 0; i < dataStr.length; i += MAX) chunks.push(dataStr.slice(i, i+MAX));
         for (let i = 0; i < chunks.length-1; i++) {
-          await fetch(`${GAS_URL}?action=storeChunk&token=${encodeURIComponent(token)}&sid=${sid}&ci=${i}&d=${encodeURIComponent(chunks[i])}`);
+          await fetch(`${GAS_URL}?action=storeChunk&token=${encodeURIComponent(token)}&sid=${encodeURIComponent(sid)}&ci=${i}&d=${encodeURIComponent(chunks[i])}`);
         }
-        r = await fetch(`${GAS_URL}?action=${action}&token=${encodeURIComponent(token)}&sid=${sid}&ci=${chunks.length-1}&total=${chunks.length}&d=${encodeURIComponent(chunks[chunks.length-1])}`);
+        r = await fetch(`${GAS_URL}?action=${encodeURIComponent(action)}&token=${encodeURIComponent(token)}&sid=${encodeURIComponent(sid)}&ci=${chunks.length-1}&total=${chunks.length}&d=${encodeURIComponent(chunks[chunks.length-1])}`);
       }
     }
     const j = await r.json();
     if (!j.ok) throw new Error(j.error);
     return j.data;
   } catch(e) {
+    showLoading(false);
+    // 1回リトライ
+    if (retry > 0 && action !== 'auth') {
+      await new Promise(res => setTimeout(res, 1500));
+      return api(action, data, retry - 1);
+    }
     toast('❌ ' + e.message);
     return null;
   } finally {
@@ -1253,7 +1264,7 @@ async function saveOrder() {
   }));
   const saved=await api('saveOrderFast',{id:orderId,num,note,deliveryType:T.delivery,channel:T.channel,createdAt:now,items:lightItems});
   isSaving=false;
-  if (!saved) { toast('❌ 登録失敗'); return; }
+  if (!saved) { toast('❌ 登録失敗。もう一度お試しください'); return; }
   S.orders.push(order);
   localStorage.setItem('mb_last_num',String(num));
   renderLocal(); renderShipping(); updateWait();
@@ -1687,6 +1698,23 @@ function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t
 function showLoading(on){document.getElementById('loading').classList.toggle('on',on);}
 
 // ============================================================
+//  MANUAL SYNC
+// ============================================================
+let _syncLock = false;
+async function manualSync() {
+  if (_syncLock) return;
+  _syncLock = true;
+  const btn = document.getElementById('sync-btn');
+  btn.style.opacity = '0.4';
+  btn.style.pointerEvents = 'none';
+  await loadAll();
+  btn.style.opacity = '1';
+  btn.style.pointerEvents = '';
+  _syncLock = false;
+  toast('🔄 データを更新しました');
+}
+
+// ============================================================
 //  UTILS
 // ============================================================
 function uid(){return Math.random().toString(36).slice(2,9)+Date.now().toString(36);}
@@ -1699,11 +1727,7 @@ function elapsedStr(d){const m=Math.floor((Date.now()-new Date(d))/60000);return
 (async function init(){
   const ok=await tryAutoLogin();
   if(ok) await showApp();
-  setInterval(async()=>{
-    if(!token||isSaving)return;
-    const tab=document.querySelector('.tab.on');
-    if(tab&&(tab.dataset.tab==='local'||tab.dataset.tab==='shipping'))await loadAll();
-  },20000);
+  // 自動同期なし（手動リロードボタンで同期）
 })();
 </script>
 </body>
