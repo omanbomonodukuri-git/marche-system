@@ -2018,7 +2018,36 @@ function elapsedStr(d){const m=Math.floor((Date.now()-new Date(d))/60000);return
 (async function init(){
   const ok=await tryAutoLogin();
   if(ok) await showApp();
-  // 自動同期なし（手動リロードボタンで同期）
+
+  // ============================================================
+  //  スマート自動同期
+  //  ・30秒ごとにチェック
+  //  ・入力中（テキスト入力・モーダル表示）はスキップ
+  //  ・注文登録中（isSaving）はスキップ
+  // ============================================================
+  function isInputting() {
+    if (document.querySelector('.overlay.on')) return true;
+    const a = document.activeElement;
+    if (a && (a.tagName==='INPUT' || a.tagName==='TEXTAREA')) return true;
+    return false;
+  }
+
+  setInterval(async () => {
+    if (!token)        return; // 未ログイン
+    if (isSaving)      return; // 登録中
+    if (isInputting()) return; // 入力中・モーダル表示中
+    const tab = document.querySelector('.tab.on');
+    if (!tab || (tab.dataset.tab !== 'local' && tab.dataset.tab !== 'shipping')) return;
+    await loadAll();
+  }, 30000); // 30秒ごと
+
+  // 画面復帰時（スリープ解除・タブ切替）も同期
+  document.addEventListener('visibilitychange', async () => {
+    if (document.visibilityState !== 'visible') return;
+    if (!token || isSaving || isInputting()) return;
+    await loadAll();
+  });
+
 })();
 </script>
 </body>
