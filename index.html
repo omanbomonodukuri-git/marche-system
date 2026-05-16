@@ -525,14 +525,32 @@ body{background:var(--bg);color:var(--text);font-family:'Noto Sans JP',sans-seri
     <input class="sh-input" id="inp-type-name" type="text" inputmode="text" placeholder="例：ブラック" style="margin-bottom:0;flex:1">
     <button class="sh-ok" style="flex:0 0 auto;padding:0 14px;font-size:12px" id="btn-add-type">追加</button>
   </div>
-  <div class="sh-lbl">在庫数（タイプなしの場合）</div>
-  <div id="no-type-stock-row" style="display:flex;align-items:center;gap:8px;margin-bottom:11px">
-    <div class="qty-ctrl">
-      <button class="qbtn" id="stock-minus">－</button>
-      <div class="qval" id="stock-val">0</div>
-      <button class="qbtn" id="stock-plus">＋</button>
+  <div id="no-type-stock-row">
+    <div class="sh-lbl">在庫数（タイプなしの場合）</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:11px">
+      <div>
+        <div style="font-size:11px;font-weight:700;color:var(--blue);margin-bottom:5px">🏪 現地</div>
+        <div style="display:flex;align-items:center;gap:6px">
+          <div class="qty-ctrl">
+            <button class="qbtn" id="stock-loc-minus">－</button>
+            <div class="qval" id="stock-loc-val">0</div>
+            <button class="qbtn" id="stock-loc-plus">＋</button>
+          </div>
+          <span style="font-size:11px;color:var(--dim)">個</span>
+        </div>
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:700;color:var(--blue);margin-bottom:5px">📦 郵送</div>
+        <div style="display:flex;align-items:center;gap:6px">
+          <div class="qty-ctrl">
+            <button class="qbtn" id="stock-ship-minus">－</button>
+            <div class="qval" id="stock-ship-val">0</div>
+            <button class="qbtn" id="stock-ship-plus">＋</button>
+          </div>
+          <span style="font-size:11px;color:var(--dim)">個</span>
+        </div>
+      </div>
     </div>
-    <span style="font-size:12px;color:var(--dim)">個（タイプ登録時は各タイプで管理）</span>
   </div>
   <div class="sh-lbl">行程ごとの作業時間（分）</div>
   <div class="step-time-grid" id="step-time-grid"></div>
@@ -641,7 +659,7 @@ let T = {
   editOrderId: null, selProds: {}, delivery: 'same-day', channel: 'marche',
   editItemId: null, editOrderIdForItem: null,
   skipBinarize: false, skipDesign: false, itemPayment: 'cash', itemPrice: 0,
-  editPid: null, stepTimes: {}, stockVal: 0, stockWarnVal: 3,
+  editPid: null, stepTimes: {}, stockVal: 0, stockLocVal: 0, stockShipVal: 0, stockWarnVal: 3,
   stockAdjPid: null, stockAdjVal: 0,
   types: [],         // [{id, name, stock}]
   selType: {},       // 旧：{pid: typeId}（後方互換）
@@ -1048,16 +1066,20 @@ function tapStep(btn, deliveryType) {
       (order.items||[]).forEach(it => {
         const p = S.products.find(x=>x.id===it.pid);
         if (p) {
+          const isShip = order.deliveryType === 'shipping';
           if (it.typeId && (p.types||[]).length > 0) {
-            // タイプ別在庫引き落とし
             const typeObj = p.types.find(t=>t.id===it.typeId);
-            if (typeObj && typeObj.stock > 0) {
-              typeObj.stock = Math.max(0, typeObj.stock-1);
-              apiAsync('adjustStock', { productId:p.id, typeId:it.typeId, stock:typeObj.stock, reason:'auto' });
+            if (typeObj) {
+              if (isShip) { typeObj.stockShip = Math.max(0,(typeObj.stockShip||0)-1); }
+              else        { typeObj.stockLoc  = Math.max(0,(typeObj.stockLoc ||0)-1); }
+              apiAsync('adjustStock', { productId:p.id, typeId:it.typeId,
+                stockLoc:typeObj.stockLoc||0, stockShip:typeObj.stockShip||0, reason:'auto' });
             }
-          } else if (p.stock > 0) {
-            p.stock = Math.max(0, p.stock-1);
-            apiAsync('adjustStock', { productId:p.id, stock:p.stock, reason:'auto' });
+          } else {
+            if (isShip) { p.stockShip = Math.max(0,(p.stockShip||0)-1); }
+            else        { p.stockLoc  = Math.max(0,(p.stockLoc ||0)-1); }
+            apiAsync('adjustStock', { productId:p.id,
+              stockLoc:p.stockLoc||0, stockShip:p.stockShip||0, reason:'auto' });
           }
         }
       });
@@ -1165,13 +1187,18 @@ function renderPPick() {
       ? Object.values(T.selTypeQty[p.id]||{}).some(q=>q>0)
       : (T.selProds[p.id]||0)>0;
 
-    // 在庫表示
+    // 配送方法に応じた在庫を表示
+    const isShipMode = T.delivery === 'shipping';
     let stockTxt='';
     if (hasTypes) {
-      const total=(p.types||[]).reduce((s,t)=>s+Number(t.stock||0),0);
-      if(total>0) stockTxt=`<div class="pp-stock ${total<=p.stockWarn?'low':'ok'}">在庫 ${total}個</div>`;
-    } else if(p.stock>0) {
-      stockTxt=`<div class="pp-stock ${p.stock<=p.stockWarn?'low':'ok'}">在庫 ${p.stock}個</div>`;
+      const total=(p.types||[]).reduce((s,t)=>s+Number(isShipMode?t.stockShip:t.stockLoc||0),0);
+      const label = isShipMode?'郵送在庫':'現地在庫';
+      if(total>0) stockTxt=`<div class="pp-stock ${total<=p.stockWarn?'low':'ok'}">${label} ${total}個</div>`;
+      else stockTxt=`<div class="pp-stock" style="color:var(--dim)">${label} なし</div>`;
+    } else {
+      const stock = isShipMode ? Number(p.stockShip||0) : Number(p.stockLoc||0);
+      const label = isShipMode?'郵送在庫':'現地在庫';
+      if(stock>0) stockTxt=`<div class="pp-stock ${stock<=p.stockWarn?'low':'ok'}">${label} ${stock}個</div>`;
     }
 
     const b=document.createElement('div');
@@ -1182,11 +1209,12 @@ function renderPPick() {
       // タイプあり：タイプごとに個数設定
       const typesHtml = (p.types||[]).map(t=>{
         const qty = (T.selTypeQty[p.id]||{})[t.id] || 0;
-        const isLow = Number(t.stock||0)>0 && Number(t.stock||0)<=p.stockWarn;
-        const isOos = Number(t.stock||0)===0 && Number(p.stock||0)!==0;
+        const tStock = isShipMode ? Number(t.stockShip||0) : Number(t.stockLoc||0);
+        const isLow = tStock>0 && tStock<=p.stockWarn;
+        const isOos = tStock===0;
         return `
-          <div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid var(--border);opacity:${isOos?0.3:1}">
-            <div style="flex:1;font-size:12px;font-weight:600;color:${isLow?'var(--red)':'var(--text)'}">${t.name}${isLow?` ⚠${t.stock}`:t.stock>0?` (${t.stock})`:'(在庫なし)'}</div>
+          <div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid var(--border);opacity:${isOos?0.4:1}">
+            <div style="flex:1;font-size:12px;font-weight:600;color:${isLow?'var(--red)':'var(--text)'}">${t.name} <span style="font-weight:400;color:${isLow?'var(--red)':isOos?'var(--dim)':'var(--green)'}">${isOos?'在庫なし':isLow?`⚠${tStock}個`:`${tStock}個`}</span></div>
             <div style="display:flex;align-items:center">
               <button class="qbtn" style="width:26px;height:26px;font-size:13px" ${isOos?'disabled':''} onclick="adjTypeQty('${p.id}','${t.id}',-1)">－</button>
               <div class="qval" id="tq-${p.id}-${t.id}" style="width:32px;font-size:13px">${qty}</div>
@@ -1411,10 +1439,12 @@ function renderMaster() {
   S.products.forEach(p=>{
     const card=document.createElement('div'); card.className='pcard';
     const hasTypes = (p.types||[]).length > 0;
-    let totalStock = hasTypes ? (p.types||[]).reduce((s,t)=>s+Number(t.stock||0),0) : p.stock;
-    const isLow=totalStock>0&&totalStock<=p.stockWarn;
-    const stockColor=totalStock===0&&!hasTypes?'var(--dim)':isLow?'var(--red)':'var(--green)';
-    const stockTxt=!hasTypes&&p.stock===0?'管理なし':isLow?`⚠ ${totalStock}個`:`${totalStock}個`;
+    const locStock  = hasTypes ? (p.types||[]).reduce((s,t)=>s+Number(t.stockLoc||0),0) : Number(p.stockLoc||0);
+    const shipStock = hasTypes ? (p.types||[]).reduce((s,t)=>s+Number(t.stockShip||0),0) : Number(p.stockShip||0);
+    const totalStock = locStock + shipStock;
+    const isLow = totalStock>0 && totalStock<=p.stockWarn;
+    const stockColor = totalStock===0?'var(--dim)':isLow?'var(--red)':'var(--green)';
+    const stockTxt = `現地${locStock} / 郵送${shipStock}`;
     const stepsHtml=LOC_STEPS.map((st,si)=>`
       <div class="pcard-step-row">
         <div class="pcard-step-dot" style="background:${st.color}"></div>
@@ -1429,21 +1459,22 @@ function renderMaster() {
       </div>
       <div class="pcard-name">${p.name}</div>
       <div class="pcard-info">¥${Number(p.price||0).toLocaleString()} / 計${p.totalMinutes||0}分</div>
-      <div class="pcard-stock" style="color:${stockColor}">在庫 ${stockTxt}</div>
-      ${hasTypes?`<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px">${(p.types||[]).map(t=>`<span style="font-size:10px;background:var(--s2);border:1px solid var(--border);border-radius:4px;padding:2px 6px;color:${Number(t.stock||0)<=p.stockWarn&&Number(t.stock||0)>0?'var(--red)':'var(--dim)'}">${t.name}: ${t.stock||0}</span>`).join('')}</div>`:''}
+      <div class="pcard-stock" style="color:${stockColor};font-size:11px">🏪${locStock} 📦${shipStock}</div>
+      ${hasTypes?`<div style="display:flex;flex-direction:column;gap:3px;margin-top:4px">${(p.types||[]).map(t=>`<div style="font-size:10px;background:var(--s2);border:1px solid var(--border);border-radius:4px;padding:3px 7px;display:flex;gap:8px"><span style="font-weight:600">${t.name}</span><span style="color:var(--blue)">🏪${t.stockLoc||0}</span><span style="color:var(--green)">📦${t.stockShip||0}</span></div>`).join('')}</div>`:''}
       <div class="pcard-steps">${stepsHtml}</div>`;
     g.appendChild(card);
   });
 }
 
 document.getElementById('btn-add-product').addEventListener('click',()=>{
-  T.editPid=null; T.stepTimes={}; T.types=[]; stockVal=0;
+  T.editPid=null; T.stepTimes={}; T.types=[]; T.stockLocVal=0; T.stockShipVal=0;
   LOC_STEPS.forEach((_,si)=>T.stepTimes[si]=5);
   document.getElementById('prod-title').textContent='商品追加';
   document.getElementById('inp-pname').value='';
   document.getElementById('inp-pprice').value='';
   document.getElementById('inp-stock-warn').value='3';
-  document.getElementById('stock-val').textContent='0';
+  document.getElementById('stock-loc-val').textContent='0';
+  document.getElementById('stock-ship-val').textContent='0';
   document.getElementById('inp-type-name').value='';
   renderTypesList();
   buildStepTimeGrid(); openOverlay('ov-product');
@@ -1454,7 +1485,7 @@ function renderTypesList() {
   const noTypeRow = document.getElementById('no-type-stock-row');
   if (!T.types.length) {
     el.innerHTML = '<div style="font-size:12px;color:var(--dim);padding:4px 0 6px">タイプなし（全体で在庫管理）</div>';
-    noTypeRow.style.display = 'flex';
+    noTypeRow.style.display = '';
     return;
   }
   noTypeRow.style.display = 'none';
@@ -1462,23 +1493,42 @@ function renderTypesList() {
   T.types.forEach((t, idx) => {
     const row = document.createElement('div');
     row.className = 'type-row';
+    row.style.flexDirection = 'column';
+    row.style.alignItems = 'stretch';
     row.innerHTML = `
-      <div class="type-name">${t.name}</div>
-      <div class="type-stock-ctrl">
-        <button class="qbtn" style="width:28px;height:28px;font-size:14px" onclick="adjTypeStock(${idx},-1)">－</button>
-        <div class="qval" id="type-stock-${idx}" style="width:36px;font-size:14px">${t.stock}</div>
-        <button class="qbtn" style="width:28px;height:28px;font-size:14px" onclick="adjTypeStock(${idx},1)">＋</button>
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+        <div class="type-name">${t.name}</div>
+        <button class="type-del" onclick="removeType(${idx})">🗑</button>
       </div>
-      <span style="font-size:11px;color:var(--dim)">個</span>
-      <button class="type-del" onclick="removeType(${idx})">🗑</button>
-    `;
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div>
+          <div style="font-size:10px;font-weight:700;color:var(--blue);margin-bottom:4px">🏪 現地</div>
+          <div style="display:flex;align-items:center;gap:4px">
+            <button class="qbtn" style="width:26px;height:26px;font-size:13px" onclick="adjTypeStockLoc(${idx},-1)">－</button>
+            <div class="qval" id="type-loc-${idx}" style="width:34px;font-size:13px">${t.stockLoc||0}</div>
+            <button class="qbtn" style="width:26px;height:26px;font-size:13px" onclick="adjTypeStockLoc(${idx},1)">＋</button>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:10px;font-weight:700;color:var(--blue);margin-bottom:4px">📦 郵送</div>
+          <div style="display:flex;align-items:center;gap:4px">
+            <button class="qbtn" style="width:26px;height:26px;font-size:13px" onclick="adjTypeStockShip(${idx},-1)">－</button>
+            <div class="qval" id="type-ship-${idx}" style="width:34px;font-size:13px">${t.stockShip||0}</div>
+            <button class="qbtn" style="width:26px;height:26px;font-size:13px" onclick="adjTypeStockShip(${idx},1)">＋</button>
+          </div>
+        </div>
+      </div>`;
     el.appendChild(row);
   });
 }
 
-function adjTypeStock(idx, d) {
-  T.types[idx].stock = Math.max(0, (T.types[idx].stock||0) + d);
-  document.getElementById('type-stock-'+idx).textContent = T.types[idx].stock;
+function adjTypeStockLoc(idx, d) {
+  T.types[idx].stockLoc = Math.max(0, (T.types[idx].stockLoc||0) + d);
+  document.getElementById('type-loc-'+idx).textContent = T.types[idx].stockLoc;
+}
+function adjTypeStockShip(idx, d) {
+  T.types[idx].stockShip = Math.max(0, (T.types[idx].stockShip||0) + d);
+  document.getElementById('type-ship-'+idx).textContent = T.types[idx].stockShip;
 }
 
 function removeType(idx) {
@@ -1496,20 +1546,26 @@ document.getElementById('btn-add-type').addEventListener('click', () => {
 
 function editProduct(pid) {
   const p=S.products.find(x=>x.id===pid); if(!p) return;
-  T.editPid=pid; T.stepTimes={...p.stepTimes}; stockVal=p.stock||0;
+  T.editPid=pid; T.stepTimes={...p.stepTimes};
+  T.stockLocVal=p.stockLoc||0; T.stockShipVal=p.stockShip||0;
   T.types = JSON.parse(JSON.stringify(p.types||[]));
   document.getElementById('prod-title').textContent='商品を編集';
   document.getElementById('inp-pname').value=p.name;
   document.getElementById('inp-pprice').value=p.price||'';
   document.getElementById('inp-stock-warn').value=p.stockWarn||3;
-  document.getElementById('stock-val').textContent=String(stockVal);
+  document.getElementById('stock-loc-val').textContent=String(T.stockLocVal);
+  document.getElementById('stock-ship-val').textContent=String(T.stockShipVal);
   document.getElementById('inp-type-name').value='';
   renderTypesList();
   buildStepTimeGrid(); openOverlay('ov-product');
 }
 
-document.getElementById('stock-minus').addEventListener('click',()=>{stockVal=Math.max(0,stockVal-1);document.getElementById('stock-val').textContent=stockVal;});
-document.getElementById('stock-plus').addEventListener('click', ()=>{stockVal++;document.getElementById('stock-val').textContent=stockVal;});
+// タイプなし在庫ボタン（現地）
+document.getElementById('stock-loc-minus').addEventListener('click',()=>{T.stockLocVal=Math.max(0,(T.stockLocVal||0)-1);document.getElementById('stock-loc-val').textContent=T.stockLocVal;});
+document.getElementById('stock-loc-plus').addEventListener('click', ()=>{T.stockLocVal=(T.stockLocVal||0)+1;document.getElementById('stock-loc-val').textContent=T.stockLocVal;});
+// タイプなし在庫ボタン（郵送）
+document.getElementById('stock-ship-minus').addEventListener('click',()=>{T.stockShipVal=Math.max(0,(T.stockShipVal||0)-1);document.getElementById('stock-ship-val').textContent=T.stockShipVal;});
+document.getElementById('stock-ship-plus').addEventListener('click', ()=>{T.stockShipVal=(T.stockShipVal||0)+1;document.getElementById('stock-ship-val').textContent=T.stockShipVal;});
 
 function buildStepTimeGrid() {
   const g=document.getElementById('step-time-grid'); g.innerHTML='';
@@ -1543,7 +1599,11 @@ document.getElementById('prod-ok').addEventListener('click', async()=>{
   const stockWarnVal=parseInt(document.getElementById('inp-stock-warn').value)||3;
   const total=Object.values(T.stepTimes).reduce((s,v)=>s+Number(v),0);
   const pid=T.editPid||uid();
-  const product={id:pid,name,price,stock:T.types.length?0:stockVal,stockWarn:stockWarnVal,types:T.types,stepTimes:T.stepTimes,totalMinutes:total};
+  const product={id:pid,name,price,
+    stockLoc:T.types.length?0:T.stockLocVal,
+    stockShip:T.types.length?0:T.stockShipVal,
+    stock:0, // 後方互換
+    stockWarn:stockWarnVal,types:T.types,stepTimes:T.stepTimes,totalMinutes:total};
   if(T.editPid){const idx=S.products.findIndex(x=>x.id===pid);if(idx>=0)S.products[idx]=product;}
   else S.products.push(product);
   renderMaster(); closeOverlay('ov-product');
@@ -1558,32 +1618,76 @@ function openStockAdj(pid) {
   setSegVal('seg-stock-reason','mistake');
 
   if ((p.types||[]).length > 0) {
-    // タイプ別調整UI
+    // タイプ別・現地／郵送調整UI
     document.getElementById('stock-current').innerHTML = (p.types||[]).map((t,i) => `
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-        <div style="flex:1;font-size:13px;font-weight:600">${t.name}</div>
-        <div class="qty-ctrl">
-          <button class="qbtn" style="width:28px;height:28px" onclick="adjTypeStockModal('${pid}',${i},-1)">－</button>
-          <div class="qval" id="type-adj-${i}" style="width:40px">${t.stock||0}</div>
-          <button class="qbtn" style="width:28px;height:28px" onclick="adjTypeStockModal('${pid}',${i},1)">＋</button>
+      <div style="background:var(--s2);border-radius:7px;padding:8px 10px;margin-bottom:6px">
+        <div style="font-size:13px;font-weight:700;margin-bottom:6px">${t.name}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div>
+            <div style="font-size:10px;font-weight:700;color:var(--blue);margin-bottom:4px">🏪 現地</div>
+            <div style="display:flex;align-items:center;gap:4px">
+              <button class="qbtn" style="width:26px;height:26px" onclick="adjTypeModalLoc(${i},-1)">－</button>
+              <div class="qval" id="tadj-loc-${i}" style="width:34px;font-size:13px">${t.stockLoc||0}</div>
+              <button class="qbtn" style="width:26px;height:26px" onclick="adjTypeModalLoc(${i},1)">＋</button>
+            </div>
+          </div>
+          <div>
+            <div style="font-size:10px;font-weight:700;color:var(--green);margin-bottom:4px">📦 郵送</div>
+            <div style="display:flex;align-items:center;gap:4px">
+              <button class="qbtn" style="width:26px;height:26px" onclick="adjTypeModalShip(${i},-1)">－</button>
+              <div class="qval" id="tadj-ship-${i}" style="width:34px;font-size:13px">${t.stockShip||0}</div>
+              <button class="qbtn" style="width:26px;height:26px" onclick="adjTypeModalShip(${i},1)">＋</button>
+            </div>
+          </div>
         </div>
-        <span style="font-size:11px;color:var(--dim)">個</span>
       </div>`).join('');
     T.stockAdjTypes = JSON.parse(JSON.stringify(p.types));
-    stockAdjVal = -1; // タイプ別モード
+    stockAdjVal = -1;
   } else {
-    stockAdjVal=p.stock||0;
-    document.getElementById('stock-current').textContent=p.stock>0?`${p.stock}個`:'管理なし（0）';
-    document.getElementById('stock-adj-val').textContent=stockAdjVal;
+    document.getElementById('stock-current').innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div>
+          <div style="font-size:10px;font-weight:700;color:var(--blue);margin-bottom:4px">🏪 現地</div>
+          <div style="display:flex;align-items:center;gap:4px">
+            <button class="qbtn" style="width:26px;height:26px" onclick="adjNoTypeModalLoc(-1)">－</button>
+            <div class="qval" id="notadj-loc" style="width:34px;font-size:13px">${p.stockLoc||0}</div>
+            <button class="qbtn" style="width:26px;height:26px" onclick="adjNoTypeModalLoc(1)">＋</button>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:10px;font-weight:700;color:var(--green);margin-bottom:4px">📦 郵送</div>
+          <div style="display:flex;align-items:center;gap:4px">
+            <button class="qbtn" style="width:26px;height:26px" onclick="adjNoTypeModalShip(-1)">－</button>
+            <div class="qval" id="notadj-ship" style="width:34px;font-size:13px">${p.stockShip||0}</div>
+            <button class="qbtn" style="width:26px;height:26px" onclick="adjNoTypeModalShip(1)">＋</button>
+          </div>
+        </div>
+      </div>`;
+    stockAdjVal = 0;
     T.stockAdjTypes = null;
+    T.stockAdjNoTypeLoc  = p.stockLoc||0;
+    T.stockAdjNoTypeShip = p.stockShip||0;
   }
   openOverlay('ov-stock');
 }
 
-function adjTypeStockModal(pid, idx, d) {
+function adjTypeModalLoc(idx, d) {
   if (!T.stockAdjTypes) return;
-  T.stockAdjTypes[idx].stock = Math.max(0, (T.stockAdjTypes[idx].stock||0)+d);
-  document.getElementById('type-adj-'+idx).textContent = T.stockAdjTypes[idx].stock;
+  T.stockAdjTypes[idx].stockLoc = Math.max(0,(T.stockAdjTypes[idx].stockLoc||0)+d);
+  document.getElementById('tadj-loc-'+idx).textContent = T.stockAdjTypes[idx].stockLoc;
+}
+function adjTypeModalShip(idx, d) {
+  if (!T.stockAdjTypes) return;
+  T.stockAdjTypes[idx].stockShip = Math.max(0,(T.stockAdjTypes[idx].stockShip||0)+d);
+  document.getElementById('tadj-ship-'+idx).textContent = T.stockAdjTypes[idx].stockShip;
+}
+function adjNoTypeModalLoc(d) {
+  T.stockAdjNoTypeLoc = Math.max(0,(T.stockAdjNoTypeLoc||0)+d);
+  document.getElementById('notadj-loc').textContent = T.stockAdjNoTypeLoc;
+}
+function adjNoTypeModalShip(d) {
+  T.stockAdjNoTypeShip = Math.max(0,(T.stockAdjNoTypeShip||0)+d);
+  document.getElementById('notadj-ship').textContent = T.stockAdjNoTypeShip;
 }
 document.getElementById('stock-adj-minus').addEventListener('click',()=>{stockAdjVal=Math.max(0,stockAdjVal-1);document.getElementById('stock-adj-val').textContent=stockAdjVal;});
 document.getElementById('stock-adj-plus').addEventListener('click', ()=>{stockAdjVal++;document.getElementById('stock-adj-val').textContent=stockAdjVal;});
@@ -1595,18 +1699,18 @@ document.getElementById('stock-ok').addEventListener('click', async()=>{
   const p=S.products.find(x=>x.id===T.stockAdjPid); if(!p) return;
   const reason=document.querySelector('#seg-stock-reason .seg-btn.on')?.dataset.val||'other';
   if (T.stockAdjTypes) {
-    // タイプ別保存
     p.types = T.stockAdjTypes;
     renderMaster(); closeOverlay('ov-stock');
     for (const t of T.stockAdjTypes) {
-      await api('adjustStock',{productId:p.id,typeId:t.id,typeName:t.name,stock:t.stock,reason});
+      await api('adjustStock',{productId:p.id,typeId:t.id,stockLoc:t.stockLoc||0,stockShip:t.stockShip||0,reason});
     }
     toast('タイプ別在庫を更新しました');
   } else {
-    p.stock=stockAdjVal;
+    p.stockLoc  = T.stockAdjNoTypeLoc||0;
+    p.stockShip = T.stockAdjNoTypeShip||0;
     renderMaster(); closeOverlay('ov-stock');
-    await api('adjustStock',{productId:p.id,stock:stockAdjVal,reason});
-    toast(`在庫を${stockAdjVal}個に更新しました`);
+    await api('adjustStock',{productId:p.id,stockLoc:p.stockLoc,stockShip:p.stockShip,reason});
+    toast(`在庫を更新しました（現地${p.stockLoc} 郵送${p.stockShip}）`);
   }
 });
 
