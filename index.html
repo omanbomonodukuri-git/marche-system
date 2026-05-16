@@ -303,6 +303,18 @@ body{background:var(--bg);color:var(--text);font-family:'Noto Sans JP',sans-seri
 .empty{text-align:center;padding:44px 20px;color:var(--dim)}
 .empty-ico{font-size:36px;margin-bottom:10px;opacity:.3}
 .section-sep{height:1px;background:var(--border);margin:10px 0}
+
+/* TYPE ROWS */
+.type-row{display:flex;align-items:center;gap:8px;background:var(--s2);border:1px solid var(--border);border-radius:7px;padding:7px 10px;margin-bottom:5px}
+.type-name{flex:1;font-size:13px;font-weight:600}
+.type-del{background:none;border:none;color:var(--red);font-size:15px;cursor:pointer;padding:0 4px;touch-action:manipulation}
+.type-stock-ctrl{display:flex;align-items:center}
+.pp-types{display:flex;flex-wrap:wrap;gap:5px;margin-top:5px}
+.pp-type-btn{background:var(--s3);border:1.5px solid var(--border);border-radius:5px;padding:4px 10px;font-size:11px;font-weight:600;color:var(--dim);cursor:pointer;touch-action:manipulation;transition:all .13s}
+.pp-type-btn:active{transform:scale(.95)}
+.pp-type-btn.on{background:rgba(184,134,11,.1);border-color:var(--goldd);color:var(--gold)}
+.pp-type-btn.low{border-color:rgba(208,48,48,.4);color:var(--red)}
+.pp-type-btn.oos{opacity:.4;pointer-events:none;text-decoration:line-through}
 </style>
 </head>
 <body>
@@ -500,17 +512,23 @@ body{background:var(--bg);color:var(--text);font-family:'Noto Sans JP',sans-seri
   <input class="sh-input" id="inp-pname" type="text" inputmode="text" placeholder="例：キーホルダー">
   <div class="sh-lbl">定価（円）</div>
   <input class="sh-input" id="inp-pprice" type="number" inputmode="numeric" placeholder="例：1500">
-  <div class="sh-lbl">在庫数</div>
-  <div style="display:flex;align-items:center;gap:8px;margin-bottom:11px">
+  <div class="sh-lbl">在庫警告ライン</div>
+  <input class="sh-input" id="inp-stock-warn" type="number" inputmode="numeric" placeholder="例：3（この数以下で警告）" style="margin-bottom:11px">
+  <div class="sh-lbl">タイプ・バリエーション <span style="font-size:10px;font-weight:400;color:var(--dim)">（カラー・素材など）</span></div>
+  <div id="types-list" style="margin-bottom:8px"></div>
+  <div style="display:flex;gap:7px;margin-bottom:11px">
+    <input class="sh-input" id="inp-type-name" type="text" inputmode="text" placeholder="例：ブラック" style="margin-bottom:0;flex:1">
+    <button class="sh-ok" style="flex:0 0 auto;padding:0 14px;font-size:12px" id="btn-add-type">追加</button>
+  </div>
+  <div class="sh-lbl">在庫数（タイプなしの場合）</div>
+  <div id="no-type-stock-row" style="display:flex;align-items:center;gap:8px;margin-bottom:11px">
     <div class="qty-ctrl">
       <button class="qbtn" id="stock-minus">－</button>
       <div class="qval" id="stock-val">0</div>
       <button class="qbtn" id="stock-plus">＋</button>
     </div>
-    <span style="font-size:12px;color:var(--dim)">個（0=在庫管理なし）</span>
+    <span style="font-size:12px;color:var(--dim)">個（タイプ登録時は各タイプで管理）</span>
   </div>
-  <div class="sh-lbl">在庫警告ライン</div>
-  <input class="sh-input" id="inp-stock-warn" type="number" inputmode="numeric" placeholder="例：3（この数以下で警告）" style="margin-bottom:11px">
   <div class="sh-lbl">行程ごとの作業時間（分）</div>
   <div class="step-time-grid" id="step-time-grid"></div>
   <div class="sh-actions">
@@ -620,6 +638,8 @@ let T = {
   skipBinarize: false, skipDesign: false, itemPayment: 'cash', itemPrice: 0,
   editPid: null, stepTimes: {}, stockVal: 0, stockWarnVal: 3,
   stockAdjPid: null, stockAdjVal: 0,
+  types: [],       // [{id, name, stock}]
+  selType: {},     // {pid: typeId}
 };
 let orderPayment = 'cash';
 
@@ -895,7 +915,7 @@ function renderCard(o, container, deliveryType) {
     irow.className = 'irow';
     irow.innerHTML = `
       <div class="ihead">
-        <div class="iname${allDone?' idone':''}">${p.name}${countLabel}</div>
+        <div class="iname${allDone?' idone':''}">${p.name}${it.typeName?` <span style="font-size:11px;color:var(--blue);font-weight:600">[${it.typeName}]</span>`:''}${countLabel}</div>
         <div class="ibadges">
           ${it.skipBinarize?'<span class="ibadge ib-skip">2値化skip</span>':''}
           ${it.skipDesign  ?'<span class="ibadge ib-skip">デザインskip</span>':''}
@@ -993,9 +1013,18 @@ function tapStep(btn, deliveryType) {
       // 在庫自動引き落とし
       (order.items||[]).forEach(it => {
         const p = S.products.find(x=>x.id===it.pid);
-        if (p && p.stock>0) {
-          p.stock = Math.max(0, p.stock-1);
-          apiAsync('adjustStock', { productId:p.id, stock:p.stock, reason:'auto' });
+        if (p) {
+          if (it.typeId && (p.types||[]).length > 0) {
+            // タイプ別在庫引き落とし
+            const typeObj = p.types.find(t=>t.id===it.typeId);
+            if (typeObj && typeObj.stock > 0) {
+              typeObj.stock = Math.max(0, typeObj.stock-1);
+              apiAsync('adjustStock', { productId:p.id, typeId:it.typeId, stock:typeObj.stock, reason:'auto' });
+            }
+          } else if (p.stock > 0) {
+            p.stock = Math.max(0, p.stock-1);
+            apiAsync('adjustStock', { productId:p.id, stock:p.stock, reason:'auto' });
+          }
         }
       });
       // GAS完了記録
@@ -1097,12 +1126,45 @@ function renderPPick() {
   const el=document.getElementById('ppick'); el.innerHTML='';
   S.products.forEach(p=>{
     const on=(T.selProds[p.id]||0)>0;
-    const stockTxt=p.stock>0?`<div class="pp-stock ${p.stock<=p.stockWarn?'low':'ok'}">在庫 ${p.stock}個</div>`:'';
+    const hasTypes = (p.types||[]).length > 0;
+    // 在庫表示
+    let stockTxt = '';
+    if (hasTypes) {
+      const totalStock = (p.types||[]).reduce((s,t)=>s+Number(t.stock||0),0);
+      stockTxt = `<div class="pp-stock ${totalStock<=p.stockWarn?'low':'ok'}">在庫 ${totalStock}個</div>`;
+    } else if (p.stock>0) {
+      stockTxt = `<div class="pp-stock ${p.stock<=p.stockWarn?'low':'ok'}">在庫 ${p.stock}個</div>`;
+    }
     const b=document.createElement('div');
     b.className=`pp${on?' on':''}`;
     b.innerHTML=`<div class="pp-name">${p.name}</div><div class="pp-sub">約${p.totalMinutes}分 ¥${Number(p.price||0).toLocaleString()}</div>${stockTxt}`;
-    b.addEventListener('click',()=>{
-      if((T.selProds[p.id]||0)>0) delete T.selProds[p.id]; else T.selProds[p.id]=1;
+    // タイプがあれば選択ボタンを表示
+    if (hasTypes) {
+      const typesHtml = (p.types||[]).map(t=>{
+        const selType = T.selType[p.id];
+        const isOn  = selType === t.id;
+        const isLow = Number(t.stock||0) <= p.stockWarn && Number(t.stock||0) > 0;
+        const isOos = Number(t.stock||0) === 0 && p.stock !== 0;
+        return `<div class="pp-type-btn${isOn?' on':''}${isLow?' low':''}${isOos?' oos':''}"
+          data-pid="${p.id}" data-tid="${t.id}">${t.name}${t.stock>0?` (${t.stock})`:''}`;
+      }).join('</div>') + (hasTypes?'</div>':'');
+      b.innerHTML += `<div class="pp-types">${typesHtml}</div>`;
+      // タイプボタンのイベントは後でデリゲート
+    }
+    b.addEventListener('click', e => {
+      const typeBtn = e.target.closest('.pp-type-btn');
+      if (typeBtn) {
+        // タイプ選択
+        const pid = typeBtn.dataset.pid;
+        const tid = typeBtn.dataset.tid;
+        T.selType[pid] = tid;
+        if ((T.selProds[pid]||0) === 0) T.selProds[pid] = 1;
+        renderPPick(); renderQtyBlock();
+        e.stopPropagation();
+        return;
+      }
+      if ((T.selProds[p.id]||0)>0) { delete T.selProds[p.id]; delete T.selType[p.id]; }
+      else { T.selProds[p.id]=1; }
       renderPPick(); renderQtyBlock();
     });
     el.appendChild(b);
@@ -1169,8 +1231,12 @@ async function saveOrder() {
         done:si===0,startedAt:si===0?now:'',completedAt:si===0?now:'',durationMins:0
       }));
       const p=S.products.find(x=>x.id===pid);
+      const selTypeId = T.selType[pid] || null;
+      const typeObj   = selTypeId ? (p?.types||[]).find(t=>t.id===selTypeId) : null;
       items.push({id:iid,pid,idx:i,totalOf:qty,skipBinarize:false,skipDesign:false,
-        price:p?.price||0,paymentMethod:orderPayment,paid:false,onHold:false,steps,stepDefs:steps});
+        price:p?.price||0,paymentMethod:orderPayment,paid:false,onHold:false,
+        typeId:selTypeId||'',typeName:typeObj?.name||'',
+        steps,stepDefs:steps});
     }
   });
 
@@ -1182,6 +1248,7 @@ async function saveOrder() {
   const lightItems=items.map(it=>({
     id:it.id,pid:it.pid,idx:it.idx,totalOf:it.totalOf,
     price:it.price,paymentMethod:it.paymentMethod,paid:false,onHold:false,
+    typeId:it.typeId||'',typeName:it.typeName||'',
     stepIds:it.steps.map(s=>s.id),step0Done:true,step0At:now
   }));
   const saved=await api('saveOrderFast',{id:orderId,num,note,deliveryType:T.delivery,channel:T.channel,createdAt:now,items:lightItems});
@@ -1256,9 +1323,11 @@ function renderMaster() {
   g.innerHTML='';
   S.products.forEach(p=>{
     const card=document.createElement('div'); card.className='pcard';
-    const isLow=p.stock>0&&p.stock<=p.stockWarn;
-    const stockColor=p.stock===0?'var(--dim)':isLow?'var(--red)':'var(--green)';
-    const stockTxt=p.stock===0?'管理なし':isLow?`⚠ ${p.stock}個`:`${p.stock}個`;
+    const hasTypes = (p.types||[]).length > 0;
+    let totalStock = hasTypes ? (p.types||[]).reduce((s,t)=>s+Number(t.stock||0),0) : p.stock;
+    const isLow=totalStock>0&&totalStock<=p.stockWarn;
+    const stockColor=totalStock===0&&!hasTypes?'var(--dim)':isLow?'var(--red)':'var(--green)';
+    const stockTxt=!hasTypes&&p.stock===0?'管理なし':isLow?`⚠ ${totalStock}個`:`${totalStock}個`;
     const stepsHtml=LOC_STEPS.map((st,si)=>`
       <div class="pcard-step-row">
         <div class="pcard-step-dot" style="background:${st.color}"></div>
@@ -1274,30 +1343,81 @@ function renderMaster() {
       <div class="pcard-name">${p.name}</div>
       <div class="pcard-info">¥${Number(p.price||0).toLocaleString()} / 計${p.totalMinutes||0}分</div>
       <div class="pcard-stock" style="color:${stockColor}">在庫 ${stockTxt}</div>
+      ${hasTypes?`<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px">${(p.types||[]).map(t=>`<span style="font-size:10px;background:var(--s2);border:1px solid var(--border);border-radius:4px;padding:2px 6px;color:${Number(t.stock||0)<=p.stockWarn&&Number(t.stock||0)>0?'var(--red)':'var(--dim)'}">${t.name}: ${t.stock||0}</span>`).join('')}</div>`:''}
       <div class="pcard-steps">${stepsHtml}</div>`;
     g.appendChild(card);
   });
 }
 
 document.getElementById('btn-add-product').addEventListener('click',()=>{
-  T.editPid=null; T.stepTimes={}; stockVal=0; stockAdjVal=0;
+  T.editPid=null; T.stepTimes={}; T.types=[]; stockVal=0;
   LOC_STEPS.forEach((_,si)=>T.stepTimes[si]=5);
   document.getElementById('prod-title').textContent='商品追加';
   document.getElementById('inp-pname').value='';
   document.getElementById('inp-pprice').value='';
   document.getElementById('inp-stock-warn').value='3';
   document.getElementById('stock-val').textContent='0';
+  document.getElementById('inp-type-name').value='';
+  renderTypesList();
   buildStepTimeGrid(); openOverlay('ov-product');
+});
+
+function renderTypesList() {
+  const el = document.getElementById('types-list');
+  const noTypeRow = document.getElementById('no-type-stock-row');
+  if (!T.types.length) {
+    el.innerHTML = '<div style="font-size:12px;color:var(--dim);padding:4px 0 6px">タイプなし（全体で在庫管理）</div>';
+    noTypeRow.style.display = 'flex';
+    return;
+  }
+  noTypeRow.style.display = 'none';
+  el.innerHTML = '';
+  T.types.forEach((t, idx) => {
+    const row = document.createElement('div');
+    row.className = 'type-row';
+    row.innerHTML = `
+      <div class="type-name">${t.name}</div>
+      <div class="type-stock-ctrl">
+        <button class="qbtn" style="width:28px;height:28px;font-size:14px" onclick="adjTypeStock(${idx},-1)">－</button>
+        <div class="qval" id="type-stock-${idx}" style="width:36px;font-size:14px">${t.stock}</div>
+        <button class="qbtn" style="width:28px;height:28px;font-size:14px" onclick="adjTypeStock(${idx},1)">＋</button>
+      </div>
+      <span style="font-size:11px;color:var(--dim)">個</span>
+      <button class="type-del" onclick="removeType(${idx})">🗑</button>
+    `;
+    el.appendChild(row);
+  });
+}
+
+function adjTypeStock(idx, d) {
+  T.types[idx].stock = Math.max(0, (T.types[idx].stock||0) + d);
+  document.getElementById('type-stock-'+idx).textContent = T.types[idx].stock;
+}
+
+function removeType(idx) {
+  T.types.splice(idx, 1);
+  renderTypesList();
+}
+
+document.getElementById('btn-add-type').addEventListener('click', () => {
+  const name = document.getElementById('inp-type-name').value.trim();
+  if (!name) { toast('タイプ名を入力してください'); return; }
+  T.types.push({ id: uid(), name, stock: 0 });
+  document.getElementById('inp-type-name').value = '';
+  renderTypesList();
 });
 
 function editProduct(pid) {
   const p=S.products.find(x=>x.id===pid); if(!p) return;
   T.editPid=pid; T.stepTimes={...p.stepTimes}; stockVal=p.stock||0;
+  T.types = JSON.parse(JSON.stringify(p.types||[]));
   document.getElementById('prod-title').textContent='商品を編集';
   document.getElementById('inp-pname').value=p.name;
   document.getElementById('inp-pprice').value=p.price||'';
   document.getElementById('inp-stock-warn').value=p.stockWarn||3;
   document.getElementById('stock-val').textContent=String(stockVal);
+  document.getElementById('inp-type-name').value='';
+  renderTypesList();
   buildStepTimeGrid(); openOverlay('ov-product');
 }
 
@@ -1336,7 +1456,7 @@ document.getElementById('prod-ok').addEventListener('click', async()=>{
   const stockWarnVal=parseInt(document.getElementById('inp-stock-warn').value)||3;
   const total=Object.values(T.stepTimes).reduce((s,v)=>s+Number(v),0);
   const pid=T.editPid||uid();
-  const product={id:pid,name,price,stock:stockVal,stockWarn:stockWarnVal,stepTimes:T.stepTimes,totalMinutes:total};
+  const product={id:pid,name,price,stock:T.types.length?0:stockVal,stockWarn:stockWarnVal,types:T.types,stepTimes:T.stepTimes,totalMinutes:total};
   if(T.editPid){const idx=S.products.findIndex(x=>x.id===pid);if(idx>=0)S.products[idx]=product;}
   else S.products.push(product);
   renderMaster(); closeOverlay('ov-product');
@@ -1346,12 +1466,37 @@ document.getElementById('prod-ok').addEventListener('click', async()=>{
 // ---- STOCK ADJUST ----
 function openStockAdj(pid) {
   const p=S.products.find(x=>x.id===pid); if(!p) return;
-  T.stockAdjPid=pid; stockAdjVal=p.stock||0;
+  T.stockAdjPid=pid;
   document.getElementById('stock-modal-title').textContent=`${p.name} - 在庫調整`;
-  document.getElementById('stock-current').textContent=p.stock>0?`${p.stock}個`:'管理なし（0）';
-  document.getElementById('stock-adj-val').textContent=stockAdjVal;
   setSegVal('seg-stock-reason','mistake');
+
+  if ((p.types||[]).length > 0) {
+    // タイプ別調整UI
+    document.getElementById('stock-current').innerHTML = (p.types||[]).map((t,i) => `
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <div style="flex:1;font-size:13px;font-weight:600">${t.name}</div>
+        <div class="qty-ctrl">
+          <button class="qbtn" style="width:28px;height:28px" onclick="adjTypeStockModal('${pid}',${i},-1)">－</button>
+          <div class="qval" id="type-adj-${i}" style="width:40px">${t.stock||0}</div>
+          <button class="qbtn" style="width:28px;height:28px" onclick="adjTypeStockModal('${pid}',${i},1)">＋</button>
+        </div>
+        <span style="font-size:11px;color:var(--dim)">個</span>
+      </div>`).join('');
+    T.stockAdjTypes = JSON.parse(JSON.stringify(p.types));
+    stockAdjVal = -1; // タイプ別モード
+  } else {
+    stockAdjVal=p.stock||0;
+    document.getElementById('stock-current').textContent=p.stock>0?`${p.stock}個`:'管理なし（0）';
+    document.getElementById('stock-adj-val').textContent=stockAdjVal;
+    T.stockAdjTypes = null;
+  }
   openOverlay('ov-stock');
+}
+
+function adjTypeStockModal(pid, idx, d) {
+  if (!T.stockAdjTypes) return;
+  T.stockAdjTypes[idx].stock = Math.max(0, (T.stockAdjTypes[idx].stock||0)+d);
+  document.getElementById('type-adj-'+idx).textContent = T.stockAdjTypes[idx].stock;
 }
 document.getElementById('stock-adj-minus').addEventListener('click',()=>{stockAdjVal=Math.max(0,stockAdjVal-1);document.getElementById('stock-adj-val').textContent=stockAdjVal;});
 document.getElementById('stock-adj-plus').addEventListener('click', ()=>{stockAdjVal++;document.getElementById('stock-adj-val').textContent=stockAdjVal;});
@@ -1362,10 +1507,20 @@ document.getElementById('stock-cancel').addEventListener('click',()=>closeOverla
 document.getElementById('stock-ok').addEventListener('click', async()=>{
   const p=S.products.find(x=>x.id===T.stockAdjPid); if(!p) return;
   const reason=document.querySelector('#seg-stock-reason .seg-btn.on')?.dataset.val||'other';
-  p.stock=stockAdjVal;
-  renderMaster(); closeOverlay('ov-stock');
-  await api('adjustStock',{productId:p.id,stock:stockAdjVal,reason});
-  toast(`在庫を${stockAdjVal}個に更新しました`);
+  if (T.stockAdjTypes) {
+    // タイプ別保存
+    p.types = T.stockAdjTypes;
+    renderMaster(); closeOverlay('ov-stock');
+    for (const t of T.stockAdjTypes) {
+      await api('adjustStock',{productId:p.id,typeId:t.id,typeName:t.name,stock:t.stock,reason});
+    }
+    toast('タイプ別在庫を更新しました');
+  } else {
+    p.stock=stockAdjVal;
+    renderMaster(); closeOverlay('ov-stock');
+    await api('adjustStock',{productId:p.id,stock:stockAdjVal,reason});
+    toast(`在庫を${stockAdjVal}個に更新しました`);
+  }
 });
 
 function confirmDeleteProduct(pid) {
