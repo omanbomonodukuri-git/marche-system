@@ -652,9 +652,9 @@ let orderPayment = 'cash';
 // ============================================================
 //  GAS API
 // ============================================================
-async function api(action, data={}, retry=1) {
+async function api(action, data={}, retry=1, forceShow=null) {
   // 軽微な操作はローディング非表示
-  const showLoad = !['updateStep','updateItem','ping'].includes(action);
+  const showLoad = forceShow !== null ? forceShow : !['updateStep','updateItem','ping','getAll','getHistory'].includes(action);
   if (showLoad) showLoading(true);
   try {
     let r;
@@ -738,14 +738,13 @@ async function tryAutoLogin() {
   if (!saved || !exp) return false;
   if (Date.now() > parseInt(exp)) { localStorage.removeItem('mb_token'); localStorage.removeItem('mb_token_exp'); return false; }
   token = saved;
-  showLoading(true);
+  // ローディング表示なしでpingチェック
   try {
     const r = await fetch(`${GAS_URL}?action=ping&token=${encodeURIComponent(token)}`);
     const j = await r.json();
-    showLoading(false);
     if (!j.ok) { localStorage.removeItem('mb_token'); localStorage.removeItem('mb_token_exp'); token=''; return false; }
     return true;
-  } catch(e) { showLoading(false); return true; }
+  } catch(e) { return true; }
 }
 
 async function showApp() {
@@ -759,8 +758,8 @@ async function showApp() {
 // ============================================================
 //  LOAD
 // ============================================================
-async function loadAll() {
-  const res = await api('getAll');
+async function loadAll(showSpinner=false) {
+  const res = await api('getAll', {}, 1, showSpinner);
   if (!res) return;
   S.orders   = res.orders || [];
   S.products = (res.products && res.products.length) ? res.products : DEFAULT_PRODUCTS;
@@ -1012,13 +1011,20 @@ function tapStep(btn, deliveryType) {
   const now = new Date().toISOString();
 
   if (sd.done) {
-    // 戻す（そのステップ以降）
-    for (let i=si; i<(getStepDefs(deliveryType).length); i++) {
+    // ✅ 完了済みをタップ→そのステップ以降を全て戻す
+    const stepDefs2 = getStepDefs(deliveryType);
+    for (let i=si; i<stepDefs2.length; i++) {
       const s2 = (item.steps||[]).find(x=>x.stepIndex===i);
       if (s2) { s2.done=false; s2.completedAt=''; }
     }
     renderLocal(); renderShipping(); updateWait();
-    apiAsync('updateStep', { stepId:sd.id, done:false });
+    toast(`↩ ${getStepDefs(deliveryType)[si]?.label||''}を戻しました`);
+    // GAS非同期更新
+    const stepDefs3 = getStepDefs(deliveryType);
+    for (let i=si; i<stepDefs3.length; i++) {
+      const s2 = (item.steps||[]).find(x=>x.stepIndex===i);
+      if (s2) apiAsync('updateStep', { stepId:s2.id, done:false });
+    }
   } else {
     // タップ＋前工程を自動チェック
     const stepDefs = getStepDefs(deliveryType);
@@ -1886,7 +1892,9 @@ async function manualSync() {
   const btn = document.getElementById('sync-btn');
   btn.style.opacity = '0.4';
   btn.style.pointerEvents = 'none';
-  await loadAll();
+  showLoading(true);
+  await loadAll(false); // ローディングはここで制御
+  showLoading(false);
   btn.style.opacity = '1';
   btn.style.pointerEvents = '';
   _syncLock = false;
