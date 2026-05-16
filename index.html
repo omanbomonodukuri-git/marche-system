@@ -652,7 +652,9 @@ let orderPayment = 'cash';
 //  GAS API
 // ============================================================
 async function api(action, data={}, retry=1) {
-  showLoading(true);
+  // 軽微な操作はローディング非表示
+  const showLoad = !['updateStep','updateItem','ping'].includes(action);
+  if (showLoad) showLoading(true);
   try {
     let r;
     if (action === 'auth') {
@@ -677,7 +679,7 @@ async function api(action, data={}, retry=1) {
     if (!j.ok) throw new Error(j.error);
     return j.data;
   } catch(e) {
-    showLoading(false);
+    if (showLoad) showLoading(false);
     // 1回リトライ
     if (retry > 0 && action !== 'auth') {
       await new Promise(res => setTimeout(res, 1500));
@@ -686,15 +688,29 @@ async function api(action, data={}, retry=1) {
     toast('❌ ' + e.message);
     return null;
   } finally {
-    showLoading(false);
+    if (showLoad) showLoading(false);
   }
 }
 
-// fire-and-forget（画面をブロックしない）
+// fire-and-forget（ローディング表示なし・画面をブロックしない）
 function apiAsync(action, data={}) {
   const dataStr = JSON.stringify(data);
-  const url = `${GAS_URL}?action=${action}&token=${encodeURIComponent(token)}&d=${encodeURIComponent(dataStr)}`;
-  fetch(url).catch(()=>{});
+  const MAX = 1500;
+  if (dataStr.length <= MAX) {
+    const url = `${GAS_URL}?action=${encodeURIComponent(action)}&token=${encodeURIComponent(token)}&d=${encodeURIComponent(dataStr)}`;
+    fetch(url).catch(()=>{});
+  } else {
+    // 長いデータは分割して非同期送信
+    const sid = uid();
+    const chunks = [];
+    for (let i = 0; i < dataStr.length; i += MAX) chunks.push(dataStr.slice(i, i+MAX));
+    (async () => {
+      for (let i = 0; i < chunks.length-1; i++) {
+        await fetch(`${GAS_URL}?action=storeChunk&token=${encodeURIComponent(token)}&sid=${encodeURIComponent(sid)}&ci=${i}&d=${encodeURIComponent(chunks[i])}`).catch(()=>{});
+      }
+      fetch(`${GAS_URL}?action=${encodeURIComponent(action)}&token=${encodeURIComponent(token)}&sid=${encodeURIComponent(sid)}&ci=${chunks.length-1}&total=${chunks.length}&d=${encodeURIComponent(chunks[chunks.length-1])}`).catch(()=>{});
+    })();
+  }
 }
 
 // ============================================================
@@ -1068,7 +1084,7 @@ function toggleHold(oid, iid) {
   if (!item) return;
   item.onHold = !item.onHold;
   renderLocal(); renderShipping(); updateWait();
-  apiAsync('updateItem', { itemId:iid, onHold:item.onHold });
+  apiAsync('updateItem', { itemId:iid, onHold:item.onHold }); // バックグラウンド保存
   toast(item.onHold ? '⏸ 保留にしました' : '▶ 保留を解除しました');
 }
 
@@ -1079,7 +1095,7 @@ function togglePaid(oid, iid) {
   if (!item) return;
   item.paid = !item.paid;
   renderLocal(); renderShipping(); updateWait();
-  apiAsync('updateItem', { itemId:iid, paid:item.paid });
+  apiAsync('updateItem', { itemId:iid, paid:item.paid }); // バックグラウンド保存
   toast(item.paid ? '✅ 入金確認しました' : '入金確認を解除しました');
 }
 
