@@ -643,8 +643,9 @@ let T = {
   skipBinarize: false, skipDesign: false, itemPayment: 'cash', itemPrice: 0,
   editPid: null, stepTimes: {}, stockVal: 0, stockWarnVal: 3,
   stockAdjPid: null, stockAdjVal: 0,
-  types: [],       // [{id, name, stock}]
-  selType: {},     // {pid: typeId}
+  types: [],         // [{id, name, stock}]
+  selType: {},       // 旧：{pid: typeId}（後方互換）
+  selTypeQty: {},    // 新：{pid: {typeId: qty}}
 };
 let orderPayment = 'cash';
 
@@ -1106,7 +1107,7 @@ document.getElementById('btn-new-local').addEventListener('click', ()=>openNewOr
 document.getElementById('btn-new-shipping').addEventListener('click', ()=>openNewOrder('shipping'));
 
 function openNewOrder(deliveryType) {
-  T.editOrderId=null; T.selProds={}; T.delivery=deliveryType;
+  T.editOrderId=null; T.selProds={}; T.selTypeQty={}; T.delivery=deliveryType;
   T.channel = deliveryType==='shipping' ? 'net' : 'marche';
   document.getElementById('order-modal-title').textContent = deliveryType==='shipping' ? '郵送注文受付' : '現地注文受付';
   document.getElementById('inp-note').value = '';
@@ -1152,74 +1153,106 @@ function calcNextOrderNum() {
 function renderPPick() {
   const el=document.getElementById('ppick'); el.innerHTML='';
   S.products.forEach(p=>{
-    const on=(T.selProds[p.id]||0)>0;
     const hasTypes = (p.types||[]).length > 0;
+    // 選択済み判定（タイプなし：selProds、タイプあり：selTypeQty内に1個以上）
+    const on = hasTypes
+      ? Object.values(T.selTypeQty[p.id]||{}).some(q=>q>0)
+      : (T.selProds[p.id]||0)>0;
+
     // 在庫表示
-    let stockTxt = '';
+    let stockTxt='';
     if (hasTypes) {
-      const totalStock = (p.types||[]).reduce((s,t)=>s+Number(t.stock||0),0);
-      stockTxt = `<div class="pp-stock ${totalStock<=p.stockWarn?'low':'ok'}">在庫 ${totalStock}個</div>`;
-    } else if (p.stock>0) {
-      stockTxt = `<div class="pp-stock ${p.stock<=p.stockWarn?'low':'ok'}">在庫 ${p.stock}個</div>`;
+      const total=(p.types||[]).reduce((s,t)=>s+Number(t.stock||0),0);
+      if(total>0) stockTxt=`<div class="pp-stock ${total<=p.stockWarn?'low':'ok'}">在庫 ${total}個</div>`;
+    } else if(p.stock>0) {
+      stockTxt=`<div class="pp-stock ${p.stock<=p.stockWarn?'low':'ok'}">在庫 ${p.stock}個</div>`;
     }
+
     const b=document.createElement('div');
     b.className=`pp${on?' on':''}`;
-    b.innerHTML=`<div class="pp-name">${p.name}</div><div class="pp-sub">約${p.totalMinutes}分 ¥${Number(p.price||0).toLocaleString()}</div>${stockTxt}`;
-    // タイプがあれば選択ボタンを表示
+    b.style.cursor='default';
+
     if (hasTypes) {
+      // タイプあり：タイプごとに個数設定
       const typesHtml = (p.types||[]).map(t=>{
-        const selType = T.selType[p.id];
-        const isOn  = selType === t.id;
-        const isLow = Number(t.stock||0) <= p.stockWarn && Number(t.stock||0) > 0;
-        const isOos = Number(t.stock||0) === 0 && p.stock !== 0;
-        return `<div class="pp-type-btn${isOn?' on':''}${isLow?' low':''}${isOos?' oos':''}"
-          data-pid="${p.id}" data-tid="${t.id}">${t.name}${t.stock>0?` (${t.stock})`:''}`;
-      }).join('</div>') + (hasTypes?'</div>':'');
-      b.innerHTML += `<div class="pp-types">${typesHtml}</div>`;
-      // タイプボタンのイベントは後でデリゲート
+        const qty = (T.selTypeQty[p.id]||{})[t.id] || 0;
+        const isLow = Number(t.stock||0)>0 && Number(t.stock||0)<=p.stockWarn;
+        const isOos = Number(t.stock||0)===0 && Number(p.stock||0)!==0;
+        return `
+          <div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid var(--border);opacity:${isOos?0.3:1}">
+            <div style="flex:1;font-size:12px;font-weight:600;color:${isLow?'var(--red)':'var(--text)'}">${t.name}${isLow?` ⚠${t.stock}`:t.stock>0?` (${t.stock})`:'(在庫なし)'}</div>
+            <div style="display:flex;align-items:center">
+              <button class="qbtn" style="width:26px;height:26px;font-size:13px" ${isOos?'disabled':''} onclick="adjTypeQty('${p.id}','${t.id}',-1)">－</button>
+              <div class="qval" id="tq-${p.id}-${t.id}" style="width:32px;font-size:13px">${qty}</div>
+              <button class="qbtn" style="width:26px;height:26px;font-size:13px" ${isOos?'disabled':''} onclick="adjTypeQty('${p.id}','${t.id}',1)">＋</button>
+            </div>
+          </div>`;
+      }).join('');
+      b.innerHTML=`
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+          <div class="pp-name" style="flex:1">${p.name}</div>
+          <div class="pp-sub">¥${Number(p.price||0).toLocaleString()}</div>
+          ${stockTxt}
+        </div>
+        <div style="border-top:1px solid var(--border);padding-top:4px">${typesHtml}</div>`;
+    } else {
+      // タイプなし：商品全体の個数
+      const qty = T.selProds[p.id]||0;
+      b.innerHTML=`
+        <div style="display:flex;align-items:center;gap:6px">
+          <div class="pp-name" style="flex:1">${p.name}</div>
+          <div class="pp-sub">約${p.totalMinutes}分 ¥${Number(p.price||0).toLocaleString()}</div>
+          ${stockTxt}
+        </div>
+        <div style="display:flex;align-items:center;justify-content:flex-end;margin-top:6px;gap:6px">
+          <button class="qbtn" style="width:28px;height:28px;font-size:14px" onclick="adjProdQty('${p.id}',-1)">－</button>
+          <div class="qval" id="pq-${p.id}" style="width:34px;font-size:14px">${qty}</div>
+          <button class="qbtn" style="width:28px;height:28px;font-size:14px" onclick="adjProdQty('${p.id}',1)">＋</button>
+        </div>`;
     }
-    b.addEventListener('click', e => {
-      const typeBtn = e.target.closest('.pp-type-btn');
-      if (typeBtn) {
-        // タイプ選択
-        const pid = typeBtn.dataset.pid;
-        const tid = typeBtn.dataset.tid;
-        T.selType[pid] = tid;
-        if ((T.selProds[pid]||0) === 0) T.selProds[pid] = 1;
-        renderPPick(); renderQtyBlock();
-        e.stopPropagation();
-        return;
-      }
-      if ((T.selProds[p.id]||0)>0) { delete T.selProds[p.id]; delete T.selType[p.id]; }
-      else { T.selProds[p.id]=1; }
-      renderPPick(); renderQtyBlock();
-    });
     el.appendChild(b);
+  });
+  renderQtyBlock();
+}
+
+function adjTypeQty(pid, tid, d) {
+  if (!T.selTypeQty[pid]) T.selTypeQty[pid]={};
+  T.selTypeQty[pid][tid] = Math.max(0, (T.selTypeQty[pid][tid]||0)+d);
+  const el = document.getElementById(`tq-${pid}-${tid}`);
+  if (el) el.textContent = T.selTypeQty[pid][tid];
+  // pp-cardのon状態更新
+  renderPPickOnState();
+  renderQtyBlock();
+}
+
+function adjProdQty(pid, d) {
+  T.selProds[pid] = Math.max(0, (T.selProds[pid]||0)+d);
+  if (T.selProds[pid]===0) delete T.selProds[pid];
+  const el = document.getElementById(`pq-${pid}`);
+  if (el) el.textContent = T.selProds[pid]||0;
+  renderPPickOnState();
+  renderQtyBlock();
+}
+
+function renderPPickOnState() {
+  document.querySelectorAll('.ppick .pp').forEach(b=>{
+    // on状態をデータから再計算（再描画なしで軽量更新）
   });
 }
 
 function renderQtyBlock() {
-  const sel=Object.keys(T.selProds).filter(k=>T.selProds[k]>0);
+  // タイプなし商品の選択済み
+  const selNoType = Object.keys(T.selProds).filter(k=>T.selProds[k]>0);
+  // タイプあり商品の選択済み
+  const selWithType = Object.keys(T.selTypeQty).filter(pid=>
+    Object.values(T.selTypeQty[pid]||{}).some(q=>q>0)
+  );
+  const hasAny = selNoType.length>0 || selWithType.length>0;
   const block=document.getElementById('qty-block');
-  if (!sel.length) { block.style.display='none'; return; }
-  block.style.display='';
-  const qs=document.getElementById('qty-section'); qs.innerHTML='';
-  sel.forEach(pid=>{
-    const p=S.products.find(x=>x.id===pid); if(!p) return;
-    const row=document.createElement('div'); row.className='qty-row';
-    row.innerHTML=`<div class="qty-name">${p.name}</div><div class="qty-ctrl">
-      <button class="qbtn" data-pid="${pid}" data-d="-1">－</button>
-      <div class="qval" id="qv-${pid}">${T.selProds[pid]}</div>
-      <button class="qbtn" data-pid="${pid}" data-d="1">＋</button></div>`;
-    row.querySelectorAll('.qbtn').forEach(b=>{
-      b.addEventListener('click',()=>{
-        const d=parseInt(b.dataset.d);
-        T.selProds[pid]=Math.max(1,(T.selProds[pid]||1)+d);
-        document.getElementById(`qv-${pid}`).textContent=T.selProds[pid];
-      });
-    });
-    qs.appendChild(row);
-  });
+  // 支払いブロックだけ表示制御
+  block.style.display = hasAny ? '' : 'none';
+  // qty-sectionは不要（ppick内で個数設定済み）
+  document.getElementById('qty-section').innerHTML='';
 }
 
 document.querySelectorAll('#pay-pick-order .pay-btn').forEach(b=>{
@@ -1237,7 +1270,15 @@ async function saveOrder() {
   if (!numRaw) { toast('受付番号を入力してください'); return; }
   const num=parseInt(numRaw);
   const note=document.getElementById('inp-note').value.trim();
+  // タイプなし商品 + タイプあり商品を統合
   const sel=Object.entries(T.selProds).filter(([,q])=>q>0);
+  // タイプあり商品をselに追加（タイプIDも含める）
+  const selWithTypes = [];
+  Object.entries(T.selTypeQty).forEach(([pid, typeQtys])=>{
+    Object.entries(typeQtys).forEach(([tid, qty])=>{
+      if (qty>0) selWithTypes.push([pid, qty, tid]);
+    });
+  });
 
   if (T.editOrderId) {
     await api('updateOrder',{orderId:T.editOrderId,num,note,deliveryType:T.delivery,channel:T.channel});
@@ -1245,11 +1286,12 @@ async function saveOrder() {
     if(o){o.num=num;o.note=note;o.deliveryType=T.delivery;o.channel=T.channel;}
     toast('更新しました'); closeOverlay('ov-order'); renderLocal(); renderShipping(); updateWait(); return;
   }
-  if (!sel.length) { toast('商品を選択してください'); return; }
+  if (!sel.length && !selWithTypes.length) { toast('商品を選択してください'); return; }
 
   const orderId=uid(), now=new Date().toISOString();
   const items=[];
   const stepDefs=getStepDefs(T.delivery);
+  // タイプなし商品
   sel.forEach(([pid,qty])=>{
     for(let i=0;i<qty;i++){
       const iid=uid();
@@ -1258,12 +1300,24 @@ async function saveOrder() {
         done:si===0,startedAt:si===0?now:'',completedAt:si===0?now:'',durationMins:0
       }));
       const p=S.products.find(x=>x.id===pid);
-      const selTypeId = T.selType[pid] || null;
-      const typeObj   = selTypeId ? (p?.types||[]).find(t=>t.id===selTypeId) : null;
       items.push({id:iid,pid,idx:i,totalOf:qty,skipBinarize:false,skipDesign:false,
         price:p?.price||0,paymentMethod:orderPayment,paid:false,onHold:false,
-        typeId:selTypeId||'',typeName:typeObj?.name||'',
-        steps,stepDefs:steps});
+        typeId:'',typeName:'',steps,stepDefs:steps});
+    }
+  });
+  // タイプあり商品
+  selWithTypes.forEach(([pid,qty,tid])=>{
+    for(let i=0;i<qty;i++){
+      const iid=uid();
+      const steps=stepDefs.map((_,si)=>({
+        id:uid(),itemId:iid,stepIndex:si,
+        done:si===0,startedAt:si===0?now:'',completedAt:si===0?now:'',durationMins:0
+      }));
+      const p=S.products.find(x=>x.id===pid);
+      const typeObj=(p?.types||[]).find(t=>t.id===tid);
+      items.push({id:iid,pid,idx:i,totalOf:qty,skipBinarize:false,skipDesign:false,
+        price:p?.price||0,paymentMethod:orderPayment,paid:false,onHold:false,
+        typeId:tid,typeName:typeObj?.name||'',steps,stepDefs:steps});
     }
   });
 
@@ -1602,13 +1656,122 @@ async function renderHistory() {
         <div class="hcard-total">¥${htotal.toLocaleString()}</div>
       </div>
       <button class="hcard-del" onclick="confirmDeleteHistory('${h.id}','${h.orderId}')">🗑</button>
-    </div>`;
+    </div>
+    <div style="display:flex;gap:6px;margin-top:7px;width:100%">
+      <button class="act-btn" style="flex:1;font-size:12px" onclick="toggleHistDetail('${h.id}')">📋 内訳</button>
+      <button class="act-btn" style="flex:1;font-size:12px" onclick="openEditHistory('${h.id}')">✏️ 編集</button>
+    </div>
+    <div id="hdet-${h.id}" style="display:none;width:100%;margin-top:7px"></div>
+    `;
     list.appendChild(card);
   });
 }
 
 document.getElementById('cal-prev').addEventListener('click',()=>{calMonth--;if(calMonth<1){calMonth=12;calYear--;}historyData=[];renderHistory();});
 document.getElementById('cal-next').addEventListener('click',()=>{calMonth++;if(calMonth>12){calMonth=1;calYear++;}historyData=[];renderHistory();});
+
+// ---- 内訳展開 ----
+function toggleHistDetail(hid) {
+  const el = document.getElementById('hdet-'+hid);
+  if (!el) return;
+  if (el.style.display !== 'none') { el.style.display='none'; return; }
+  const h = historyData.find(x=>x.id===hid);
+  if (!h) return;
+  const itemRows = (h.salesItems||[]).map(si=>`
+    <div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border)">
+      <div style="flex:1;font-size:12px;font-weight:600">${si.productName||'-'}</div>
+      <div style="font-size:11px;color:var(--dim)">${PAY_LABELS[si.paymentMethod]||'現金'}</div>
+      <div style="font-size:12px;font-weight:700;color:var(--gold)">¥${Number(si.price||0).toLocaleString()}</div>
+    </div>`).join('');
+  const isShip = h.deliveryType==='shipping';
+  el.innerHTML = `
+    <div style="background:var(--s2);border-radius:8px;padding:10px 12px;border:1px solid var(--border)">
+      <div style="font-size:11px;font-weight:700;color:var(--dim);margin-bottom:5px">商品内訳</div>
+      ${itemRows||'<div style="font-size:12px;color:var(--dim)">データなし</div>'}
+      <div style="font-size:11px;font-weight:700;color:var(--dim);margin:8px 0 5px">待ち時間実績</div>
+      <div style="font-size:13px;font-weight:700">${isShip?`受付から完了まで ${h.waitMinutes||'-'}日`:`完了まで ${h.waitMinutes||'-'}分`}</div>
+    </div>`;
+  el.style.display='block';
+}
+
+// ---- 履歴編集 ----
+function openEditHistory(hid) {
+  const h = historyData.find(x=>x.id===hid);
+  if (!h) return;
+  editingHistId = hid;
+  if (!document.getElementById('ov-hist-edit')) {
+    const ov = document.createElement('div');
+    ov.id = 'ov-hist-edit';
+    ov.className = 'overlay';
+    ov.innerHTML = `
+      <div class="sheet">
+        <div class="sh-title">履歴を編集</div>
+        <div class="sh-lbl">お渡し方法</div>
+        <div class="seg" id="hist-seg-delivery">
+          <div class="seg-btn" data-val="same-day">🏪 現地</div>
+          <div class="seg-btn" data-val="shipping">📦 郵送</div>
+        </div>
+        <div class="sh-lbl">商品ごとの価格・支払い方法</div>
+        <div id="hist-items-edit"></div>
+        <div class="sh-actions">
+          <button class="sh-cancel" onclick="closeOverlay('ov-hist-edit')">キャンセル</button>
+          <button class="sh-ok" onclick="saveHistEdit()">保存</button>
+        </div>
+      </div>`;
+    document.body.appendChild(ov);
+    ov.addEventListener('click', e=>{ if(e.target===ov) ov.classList.remove('on'); });
+    document.querySelectorAll('#hist-seg-delivery .seg-btn').forEach(b=>{
+      b.addEventListener('click',()=>{
+        document.querySelectorAll('#hist-seg-delivery .seg-btn').forEach(x=>x.classList.remove('on'));
+        b.classList.add('on');
+      });
+    });
+  }
+  // 値をセット
+  document.querySelectorAll('#hist-seg-delivery .seg-btn').forEach(b=>{
+    b.classList.toggle('on', b.dataset.val===(h.deliveryType||'same-day'));
+  });
+  const itemsEl = document.getElementById('hist-items-edit');
+  itemsEl.innerHTML = (h.salesItems||[]).map((si,i)=>`
+    <div style="background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:6px">
+      <div style="font-size:13px;font-weight:700;margin-bottom:8px">${si.productName||'-'}</div>
+      <div class="sh-lbl">価格（円）</div>
+      <input class="sh-input" style="margin-bottom:8px" type="number" inputmode="numeric" id="hist-price-${i}" value="${si.price||0}">
+      <div class="sh-lbl">支払い方法</div>
+      <div class="pay-pick" style="margin-bottom:0">
+        ${Object.entries(PAY_LABELS).map(([k,l])=>`
+          <div class="pay-btn${(si.paymentMethod||'cash')===k?' on':''}" data-pay="${k}" data-idx="${i}" onclick="setHistPay(this,${i},'${k}')">
+            ${k==='cash'?'💴':k==='airpay'?'💳':'📱'} ${l}
+          </div>`).join('')}
+      </div>
+    </div>`).join('');
+  openOverlay('ov-hist-edit');
+}
+
+function setHistPay(el, idx, val) {
+  document.querySelectorAll(`[data-idx="${idx}"].pay-btn`).forEach(b=>b.classList.toggle('on',b===el));
+}
+
+async function saveHistEdit() {
+  const h = historyData.find(x=>x.id===editingHistId);
+  if (!h) return;
+  const delivery = document.querySelector('#hist-seg-delivery .seg-btn.on')?.dataset.val || h.deliveryType;
+  (h.salesItems||[]).forEach((si,i)=>{
+    const priceEl = document.getElementById(`hist-price-${i}`);
+    const payEl   = document.querySelector(`[data-idx="${i}"].pay-btn.on`);
+    if (priceEl) si.price = parseInt(priceEl.value)||si.price;
+    if (payEl)   si.paymentMethod = payEl.dataset.pay;
+  });
+  h.deliveryType = delivery;
+  closeOverlay('ov-hist-edit');
+  renderHistory();
+  toast('更新しました');
+  api('updateHistory',{
+    historyId: editingHistId,
+    deliveryType: delivery,
+    salesItems: (h.salesItems||[]).map(si=>({id:si.id, price:si.price, paymentMethod:si.paymentMethod}))
+  });
+}
 
 // ============================================================
 //  ANALYTICS
