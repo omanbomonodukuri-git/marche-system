@@ -751,7 +751,7 @@ function startClock() {
     if (!token || isSaving) return;
     const tab = document.querySelector('.tab.on');
     if (tab && (tab.dataset.tab==='local' || tab.dataset.tab==='shipping')) loadAll();
-  }, 90000);
+  }, 20000);
 }
 
 function buildLegend() {
@@ -1548,7 +1548,7 @@ function elapsedStr(d){const m=Math.floor((Date.now()-new Date(d))/60000);return
     if(!token||isSaving)return;
     const tab=document.querySelector('.tab.on');
     if(tab&&(tab.dataset.tab==='local'||tab.dataset.tab==='shipping'))await loadAll();
-  },90000);
+  },20000);
 })();
 </script>
 </body>
