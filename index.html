@@ -1079,21 +1079,7 @@ function tapStep(btn, deliveryType) {
       (order.items||[]).forEach(it => {
         const p = S.products.find(x=>x.id===it.pid);
         if (p) {
-          const isShip = order.deliveryType === 'shipping';
-          if (it.typeId && (p.types||[]).length > 0) {
-            const typeObj = p.types.find(t=>t.id===it.typeId);
-            if (typeObj) {
-              if (isShip) { typeObj.stockShip = Math.max(0,(typeObj.stockShip||0)-1); }
-              else        { typeObj.stockLoc  = Math.max(0,(typeObj.stockLoc ||0)-1); }
-              apiAsync('adjustStock', { productId:p.id, typeId:it.typeId,
-                stockLoc:typeObj.stockLoc||0, stockShip:typeObj.stockShip||0, reason:'auto' });
-            }
-          } else {
-            if (isShip) { p.stockShip = Math.max(0,(p.stockShip||0)-1); }
-            else        { p.stockLoc  = Math.max(0,(p.stockLoc ||0)-1); }
-            apiAsync('adjustStock', { productId:p.id,
-              stockLoc:p.stockLoc||0, stockShip:p.stockShip||0, reason:'auto' });
-          }
+          // 在庫は注文登録時に引き落とし済みのためここでは不要
         }
       });
       // GAS完了記録
@@ -1456,7 +1442,29 @@ async function saveOrder() {
   if (!saved) { toast('❌ 登録失敗。もう一度お試しください'); return; }
   S.orders.push(order);
   localStorage.setItem('mb_last_num',String(num));
-  renderLocal(); renderShipping(); updateWait();
+
+  // 注文登録時に在庫を引き落とし
+  items.forEach(it => {
+    const p = S.products.find(x=>x.id===it.pid);
+    if (!p) return;
+    const isShip = T.delivery === 'shipping';
+    if (it.typeId && (p.types||[]).length > 0) {
+      const typeObj = p.types.find(t=>t.id===it.typeId);
+      if (typeObj) {
+        if (isShip) typeObj.stockShip = Math.max(0,(typeObj.stockShip||0)-1);
+        else        typeObj.stockLoc  = Math.max(0,(typeObj.stockLoc ||0)-1);
+        apiAsync('adjustStock',{ productId:p.id, typeId:it.typeId,
+          stockLoc:typeObj.stockLoc||0, stockShip:typeObj.stockShip||0, reason:'order' });
+      }
+    } else {
+      if (isShip) p.stockShip = Math.max(0,(p.stockShip||0)-1);
+      else        p.stockLoc  = Math.max(0,(p.stockLoc ||0)-1);
+      apiAsync('adjustStock',{ productId:p.id,
+        stockLoc:p.stockLoc||0, stockShip:p.stockShip||0, reason:'order' });
+    }
+  });
+
+  renderLocal(); renderShipping(); updateWait(); renderMaster();
   toast(`✅ #${String(num).padStart(3,'0')} 受付しました`);
 }
 
@@ -1498,8 +1506,28 @@ document.getElementById('item-ok').addEventListener('click',async()=>{
 function confirmDeleteOrder(oid) {
   const o=S.orders.find(x=>x.id===oid);
   showConfirm(`#${String(o?.num||'').padStart(3,'0')} を削除しますか？`,'削除後は元に戻せません',async()=>{
+    // 在庫を戻す
+    (o.items||[]).forEach(it => {
+      const p = S.products.find(x=>x.id===it.pid);
+      if (!p) return;
+      const isShip = o.deliveryType === 'shipping';
+      if (it.typeId && (p.types||[]).length > 0) {
+        const typeObj = p.types.find(t=>t.id===it.typeId);
+        if (typeObj) {
+          if (isShip) typeObj.stockShip = (typeObj.stockShip||0)+1;
+          else        typeObj.stockLoc  = (typeObj.stockLoc ||0)+1;
+          apiAsync('adjustStock',{ productId:p.id, typeId:it.typeId,
+            stockLoc:typeObj.stockLoc||0, stockShip:typeObj.stockShip||0, reason:'delete' });
+        }
+      } else {
+        if (isShip) p.stockShip = (p.stockShip||0)+1;
+        else        p.stockLoc  = (p.stockLoc ||0)+1;
+        apiAsync('adjustStock',{ productId:p.id,
+          stockLoc:p.stockLoc||0, stockShip:p.stockShip||0, reason:'delete' });
+      }
+    });
     S.orders=S.orders.filter(x=>x.id!==oid);
-    renderLocal(); renderShipping(); updateWait();
+    renderLocal(); renderShipping(); updateWait(); renderMaster();
     await api('deleteOrder',{orderId:oid}); toast('削除しました');
   });
 }
