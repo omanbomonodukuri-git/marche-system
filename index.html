@@ -1303,41 +1303,61 @@ function renderQtyBlock() {
   const allPids = [...new Set([...selNoType, ...selWithType])];
   if (!allPids.length) { optEl.innerHTML=''; return; }
 
-  optEl.innerHTML = allPids.map(pid => {
+  // タイプ×商品の全組み合わせを列挙
+  const optRows = [];
+  allPids.forEach(pid => {
     const p = S.products.find(x=>x.id===pid);
-    if (!p) return '';
-    const opt = T.options[pid] || { fee:0, note:'' };
+    if (!p) return;
+    const hasTypes = (p.types||[]).length > 0;
+    if (hasTypes) {
+      // タイプあり：選択されているタイプごとに行を作成
+      (p.types||[]).forEach(t => {
+        const qty = (T.selTypeQty[pid]||{})[t.id] || 0;
+        if (qty > 0) optRows.push({ pid, tid: t.id, label: p.name + ' [' + t.name + ']' });
+      });
+    } else {
+      const qty = T.selProds[pid] || 0;
+      if (qty > 0) optRows.push({ pid, tid: '', label: p.name });
+    }
+  });
+
+  optEl.innerHTML = optRows.map((row, idx) => {
+    const opt = getOption(row.pid, row.tid);
+    const isLast = idx === optRows.length - 1;
     return `
-      <div style="border-bottom:1px solid var(--border);padding-bottom:10px;margin-bottom:10px">
-        <div style="font-size:13px;font-weight:700;margin-bottom:6px">${p.name}</div>
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-          <div style="font-size:12px;color:var(--dim);flex-shrink:0">追加料金</div>
+      <div style="${isLast?'':'border-bottom:1px solid var(--border);padding-bottom:10px;margin-bottom:10px'}">
+        <div style="font-size:13px;font-weight:700;margin-bottom:8px;color:var(--gold)">${row.label}</div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px">
+          <div style="font-size:12px;color:var(--dim);flex-shrink:0;width:60px">追加料金</div>
           <div style="display:flex;align-items:center;gap:4px">
             <span style="font-size:13px;color:var(--dim)">¥</span>
             <input type="number" inputmode="numeric" value="${opt.fee||0}"
-              style="width:90px;background:var(--s1);border:1.5px solid var(--border);border-radius:6px;padding:6px 8px;font-size:14px;font-weight:700;color:var(--gold)"
-              oninput="updateOptionFee('${pid}',this.value)">
+              style="width:90px;background:var(--s1);border:1.5px solid var(--border);border-radius:6px;padding:6px 8px;font-size:15px;font-weight:700;color:var(--gold)"
+              oninput="updateOptionFee('${row.pid}','${row.tid}',this.value)">
           </div>
-          <div style="font-size:11px;color:var(--blue)">+設定で2値化2倍</div>
+          ${opt.fee>0?'<span style="font-size:11px;color:var(--orange);font-weight:700">2値化×2</span>':'<span style="font-size:10px;color:var(--dim)">料金入力で2値化2倍</span>'}
         </div>
         <input type="text" inputmode="text" value="${opt.note||''}"
-          placeholder="オプション内容（例：名入れ、背景除去）"
-          style="width:100%;background:var(--s1);border:1.5px solid var(--border);border-radius:6px;padding:7px 10px;font-size:13px;color:var(--text)"
-          oninput="updateOptionNote('${pid}',this.value)">
+          placeholder="オプション内容（例：名入れ・背景除去）"
+          style="width:100%;background:var(--s1);border:1.5px solid var(--border);border-radius:6px;padding:8px 10px;font-size:13px;color:var(--text)"
+          oninput="updateOptionNote('${row.pid}','${row.tid}',this.value)">
       </div>`;
   }).join('');
-  // 最後のborderを消す
-  const divs = optEl.querySelectorAll('div[style*="border-bottom"]');
-  if (divs.length) divs[divs.length-1].style.borderBottom = 'none';
 }
 
-function updateOptionFee(pid, val) {
-  if (!T.options[pid]) T.options[pid] = { fee:0, note:'' };
-  T.options[pid].fee = parseInt(val)||0;
+function updateOptionFee(pid, tid, val) {
+  const key = pid + '__' + (tid||'');
+  if (!T.options[key]) T.options[key] = { fee:0, note:'' };
+  T.options[key].fee = parseInt(val)||0;
 }
-function updateOptionNote(pid, val) {
-  if (!T.options[pid]) T.options[pid] = { fee:0, note:'' };
-  T.options[pid].note = val;
+function updateOptionNote(pid, tid, val) {
+  const key = pid + '__' + (tid||'');
+  if (!T.options[key]) T.options[key] = { fee:0, note:'' };
+  T.options[key].note = val;
+}
+function getOption(pid, tid) {
+  const key = pid + '__' + (tid||'');
+  return T.options[key] || { fee:0, note:'' };
 }
 
 document.querySelectorAll('#pay-pick-order .pay-btn').forEach(b=>{
@@ -1385,9 +1405,8 @@ async function saveOrder() {
         done:si===0,startedAt:si===0?now:'',completedAt:si===0?now:'',durationMins:0
       }));
       const p=S.products.find(x=>x.id===pid);
-      const opt=T.options[pid]||{fee:0,note:''};
-      const hasOption=opt.fee>0||opt.note;
-      // オプションあり：2値化ステップの時間を2倍にする（stepTimesをコピーして上書き）
+      const opt=getOption(pid,'');
+      const hasOption=opt.fee>0||!!opt.note;
       const basePrice=(p?.price||0)+Number(opt.fee||0);
       items.push({id:iid,pid,idx:i,totalOf:qty,skipBinarize:false,skipDesign:false,
         price:basePrice,paymentMethod:orderPayment,paid:false,onHold:false,
@@ -1407,8 +1426,8 @@ async function saveOrder() {
       }));
       const p=S.products.find(x=>x.id===pid);
       const typeObj=(p?.types||[]).find(t=>t.id===tid);
-      const opt2=T.options[pid]||{fee:0,note:''};
-      const hasOption2=opt2.fee>0||opt2.note;
+      const opt2=getOption(pid,tid);
+      const hasOption2=opt2.fee>0||!!opt2.note;
       const basePrice2=(p?.price||0)+Number(opt2.fee||0);
       items.push({id:iid,pid,idx:i,totalOf:qty,skipBinarize:false,skipDesign:false,
         price:basePrice2,paymentMethod:orderPayment,paid:false,onHold:false,
