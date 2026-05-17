@@ -86,7 +86,7 @@ body{background:var(--bg);color:var(--text);font-family:'Noto Sans JP',sans-seri
 
 /* ORDER HEAD */
 .och{display:flex;align-items:flex-start;gap:7px;padding:9px 11px 7px 15px;border-bottom:1px solid var(--border)}
-.och-num{background:var(--s2);border:1px solid var(--border);border-radius:5px;padding:2px 7px;font-family:'Zen Kaku Gothic New',sans-serif;font-size:13px;font-weight:900;color:var(--gold);flex-shrink:0}
+.och-num{background:var(--s2);border:1px solid var(--border);border-radius:7px;padding:4px 10px;font-family:'Zen Kaku Gothic New',sans-serif;font-size:20px;font-weight:900;color:var(--gold);flex-shrink:0;letter-spacing:.05em}
 .badge{font-size:9px;font-weight:700;border-radius:3px;padding:2px 5px;flex-shrink:0;align-self:center}
 .badge-loc{background:rgba(184,134,11,.12);color:var(--gold)}
 .badge-ship{background:rgba(40,120,200,.12);color:var(--blue)}
@@ -466,6 +466,12 @@ body{background:var(--bg);color:var(--text);font-family:'Noto Sans JP',sans-seri
   <div id="qty-block" style="display:none">
     <div class="sh-lbl">個数・支払い</div>
     <div id="qty-section"></div>
+    <div class="sh-lbl" style="margin-top:4px">オプション追加料金</div>
+    <div style="background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:11px">
+      <div style="font-size:11px;color:var(--dim);margin-bottom:8px">オプションがある商品に追加料金と内容を入力してください。2値化時間が自動で2倍になります。</div>
+      <div id="option-section"></div>
+    </div>
+    <div class="sh-lbl">支払い方法</div>
     <div class="pay-pick" id="pay-pick-order">
       <div class="pay-btn on" data-pay="cash">💴 現金</div>
       <div class="pay-btn" data-pay="airpay">💳 Airpay</div>
@@ -660,6 +666,7 @@ let T = {
   types: [],         // [{id, name, stock}]
   selType: {},       // 旧：{pid: typeId}（後方互換）
   selTypeQty: {},    // 新：{pid: {typeId: qty}}
+  options: {},       // {pid: {fee: 0, note: ''}} オプション料金
 };
 let orderPayment = 'cash';
 
@@ -779,10 +786,13 @@ async function loadAll(showSpinner=false) {
   S.products = (res.products && res.products.length) ? res.products : DEFAULT_PRODUCTS;
   S.orders.forEach(o => {
     (o.items||[]).forEach(it => {
-      it.skipBinarize = it.skipBinarize==1 || it.skipBinarize===true;
-      it.skipDesign   = it.skipDesign==1   || it.skipDesign===true;
-      it.onHold       = it.onHold==1       || it.onHold===true;
-      it.paid         = it.paid==1         || it.paid===true;
+      it.skipBinarize  = it.skipBinarize==1  || it.skipBinarize===true;
+      it.skipDesign    = it.skipDesign==1    || it.skipDesign===true;
+      it.onHold        = it.onHold==1        || it.onHold===true;
+      it.paid          = it.paid==1          || it.paid===true;
+      it.doubleBinarize= it.doubleBinarize==1|| it.doubleBinarize===true;
+      it.optionFee     = Number(it.optionFee||0);
+      it.optionNote    = it.optionNote||'';
       (it.steps||[]).forEach(s => { s.done = s.done==1 || s.done===true; });
     });
   });
@@ -842,7 +852,9 @@ function calcItemRemainingMins(item, deliveryType) {
       const si = sd.stepIndex;
       if (si===1 && item.skipBinarize) return;
       if (si===2 && item.skipDesign)   return;
-      mins += Number(p.stepTimes[si] || 0);
+      const base = Number(p.stepTimes[si] || 0);
+      // オプションあり→2値化(si=1)を2倍
+      mins += (si===1 && item.doubleBinarize) ? base*2 : base;
     }
   });
   return mins;
@@ -960,6 +972,8 @@ function renderCard(o, container, deliveryType) {
         <div class="ibadges">
           ${it.skipBinarize?'<span class="ibadge ib-skip">2値化skip</span>':''}
           ${it.skipDesign  ?'<span class="ibadge ib-skip">デザインskip</span>':''}
+          ${it.doubleBinarize?'<span class="ibadge" style="background:rgba(200,96,30,.1);color:var(--orange)">2値化×2</span>':''}
+          ${it.optionNote  ?`<span class="ibadge" style="background:rgba(40,120,200,.1);color:var(--blue)">${it.optionNote}</span>`:''}
           ${payLabel       ?`<span class="ibadge ib-pay">${payLabel}</span>`:''}
         </div>
         <div class="iprice">¥${Number(it.price||p.price||0).toLocaleString()}</div>
@@ -1004,7 +1018,10 @@ function calcItemMins(item, product) {
   return LOC_STEPS.reduce((s,_,si) => {
     if (si===1 && item.skipBinarize) return s;
     if (si===2 && item.skipDesign)   return s;
-    return s + (Number(product.stepTimes[si])||0);
+    const base = Number(product.stepTimes[si])||0;
+    // オプションあり→2値化(si=1)を2倍
+    if (si===1 && item.doubleBinarize) return s + base*2;
+    return s + base;
   }, 0);
 }
 
@@ -1131,7 +1148,7 @@ document.getElementById('btn-new-local').addEventListener('click', ()=>openNewOr
 document.getElementById('btn-new-shipping').addEventListener('click', ()=>openNewOrder('shipping'));
 
 function openNewOrder(deliveryType) {
-  T.editOrderId=null; T.selProds={}; T.selTypeQty={}; T.delivery=deliveryType;
+  T.editOrderId=null; T.selProds={}; T.selTypeQty={}; T.options={}; T.delivery=deliveryType;
   T.channel = deliveryType==='shipping' ? 'net' : 'marche';
   document.getElementById('order-modal-title').textContent = deliveryType==='shipping' ? '郵送注文受付' : '現地注文受付';
   document.getElementById('inp-note').value = '';
@@ -1271,18 +1288,56 @@ function renderPPickOnState() {
 }
 
 function renderQtyBlock() {
-  // タイプなし商品の選択済み
-  const selNoType = Object.keys(T.selProds).filter(k=>T.selProds[k]>0);
-  // タイプあり商品の選択済み
+  const selNoType   = Object.keys(T.selProds).filter(k=>T.selProds[k]>0);
   const selWithType = Object.keys(T.selTypeQty).filter(pid=>
     Object.values(T.selTypeQty[pid]||{}).some(q=>q>0)
   );
   const hasAny = selNoType.length>0 || selWithType.length>0;
   const block=document.getElementById('qty-block');
-  // 支払いブロックだけ表示制御
   block.style.display = hasAny ? '' : 'none';
-  // qty-sectionは不要（ppick内で個数設定済み）
   document.getElementById('qty-section').innerHTML='';
+
+  // オプション入力欄をレンダリング
+  const optEl = document.getElementById('option-section');
+  // 選択されている全商品のpidを収集
+  const allPids = [...new Set([...selNoType, ...selWithType])];
+  if (!allPids.length) { optEl.innerHTML=''; return; }
+
+  optEl.innerHTML = allPids.map(pid => {
+    const p = S.products.find(x=>x.id===pid);
+    if (!p) return '';
+    const opt = T.options[pid] || { fee:0, note:'' };
+    return `
+      <div style="border-bottom:1px solid var(--border);padding-bottom:10px;margin-bottom:10px">
+        <div style="font-size:13px;font-weight:700;margin-bottom:6px">${p.name}</div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+          <div style="font-size:12px;color:var(--dim);flex-shrink:0">追加料金</div>
+          <div style="display:flex;align-items:center;gap:4px">
+            <span style="font-size:13px;color:var(--dim)">¥</span>
+            <input type="number" inputmode="numeric" value="${opt.fee||0}"
+              style="width:90px;background:var(--s1);border:1.5px solid var(--border);border-radius:6px;padding:6px 8px;font-size:14px;font-weight:700;color:var(--gold)"
+              oninput="updateOptionFee('${pid}',this.value)">
+          </div>
+          <div style="font-size:11px;color:var(--blue)">+設定で2値化2倍</div>
+        </div>
+        <input type="text" inputmode="text" value="${opt.note||''}"
+          placeholder="オプション内容（例：名入れ、背景除去）"
+          style="width:100%;background:var(--s1);border:1.5px solid var(--border);border-radius:6px;padding:7px 10px;font-size:13px;color:var(--text)"
+          oninput="updateOptionNote('${pid}',this.value)">
+      </div>`;
+  }).join('');
+  // 最後のborderを消す
+  const divs = optEl.querySelectorAll('div[style*="border-bottom"]');
+  if (divs.length) divs[divs.length-1].style.borderBottom = 'none';
+}
+
+function updateOptionFee(pid, val) {
+  if (!T.options[pid]) T.options[pid] = { fee:0, note:'' };
+  T.options[pid].fee = parseInt(val)||0;
+}
+function updateOptionNote(pid, val) {
+  if (!T.options[pid]) T.options[pid] = { fee:0, note:'' };
+  T.options[pid].note = val;
 }
 
 document.querySelectorAll('#pay-pick-order .pay-btn').forEach(b=>{
@@ -1330,9 +1385,16 @@ async function saveOrder() {
         done:si===0,startedAt:si===0?now:'',completedAt:si===0?now:'',durationMins:0
       }));
       const p=S.products.find(x=>x.id===pid);
+      const opt=T.options[pid]||{fee:0,note:''};
+      const hasOption=opt.fee>0||opt.note;
+      // オプションあり：2値化ステップの時間を2倍にする（stepTimesをコピーして上書き）
+      const basePrice=(p?.price||0)+Number(opt.fee||0);
       items.push({id:iid,pid,idx:i,totalOf:qty,skipBinarize:false,skipDesign:false,
-        price:p?.price||0,paymentMethod:orderPayment,paid:false,onHold:false,
-        typeId:'',typeName:'',steps,stepDefs:steps});
+        price:basePrice,paymentMethod:orderPayment,paid:false,onHold:false,
+        typeId:'',typeName:'',
+        optionFee:opt.fee||0,optionNote:opt.note||'',
+        doubleBinarize:hasOption,
+        steps,stepDefs:steps});
     }
   });
   // タイプあり商品
@@ -1345,9 +1407,15 @@ async function saveOrder() {
       }));
       const p=S.products.find(x=>x.id===pid);
       const typeObj=(p?.types||[]).find(t=>t.id===tid);
+      const opt2=T.options[pid]||{fee:0,note:''};
+      const hasOption2=opt2.fee>0||opt2.note;
+      const basePrice2=(p?.price||0)+Number(opt2.fee||0);
       items.push({id:iid,pid,idx:i,totalOf:qty,skipBinarize:false,skipDesign:false,
-        price:p?.price||0,paymentMethod:orderPayment,paid:false,onHold:false,
-        typeId:tid,typeName:typeObj?.name||'',steps,stepDefs:steps});
+        price:basePrice2,paymentMethod:orderPayment,paid:false,onHold:false,
+        typeId:tid,typeName:typeObj?.name||'',
+        optionFee:opt2.fee||0,optionNote:opt2.note||'',
+        doubleBinarize:hasOption2,
+        steps,stepDefs:steps});
     }
   });
 
@@ -1360,6 +1428,8 @@ async function saveOrder() {
     id:it.id,pid:it.pid,idx:it.idx,totalOf:it.totalOf,
     price:it.price,paymentMethod:it.paymentMethod,paid:false,onHold:false,
     typeId:it.typeId||'',typeName:it.typeName||'',
+    optionFee:it.optionFee||0,optionNote:it.optionNote||'',
+    doubleBinarize:it.doubleBinarize||false,
     stepIds:it.steps.map(s=>s.id),step0Done:true,step0At:now
   }));
   const saved=await api('saveOrderFast',{id:orderId,num,note,deliveryType:T.delivery,channel:T.channel,createdAt:now,items:lightItems});
