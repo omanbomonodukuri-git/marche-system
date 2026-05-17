@@ -432,8 +432,16 @@ body{background:var(--bg);color:var(--text);font-family:'Noto Sans JP',sans-seri
     <div id="rank-list"></div>
   </div>
   <div class="an-section">
-    <div class="an-title">行程別 平均実績時間</div>
+    <div class="an-title">行程別 平均実績時間（現地のみ）</div>
     <div class="step-stat-grid" id="step-stat-grid"></div>
+  </div>
+  <div class="an-section">
+    <div class="an-title">商品別 平均制作時間（現地のみ）</div>
+    <div class="step-stat-grid" id="prod-avg-grid"></div>
+  </div>
+  <div class="an-section">
+    <div class="an-title">郵送 平均所要日数</div>
+    <div id="ship-avg-days" style="font-size:22px;font-weight:900;color:var(--blue);padding:8px 0">--</div>
   </div>
   <button class="act-btn" id="csv-btn" style="width:100%;padding:11px;font-size:12px">📥 スプレッドシートで開く</button>
 </div>
@@ -1920,12 +1928,28 @@ function toggleHistDetail(hid) {
       <div style="font-size:12px;font-weight:700;color:var(--gold)">¥${Number(si.price||0).toLocaleString()}</div>
     </div>`).join('');
   const isShip = h.deliveryType==='shipping';
+  // 工程別実績時間（historyのstepDetailsから）
+  const stepDetails = h.stepDetails || [];
+  const stepRowsHtml = !isShip && stepDetails.length ? `
+    <div style="font-size:11px;font-weight:700;color:var(--dim);margin:8px 0 5px">工程別実績時間</div>
+    <div style="display:flex;flex-wrap:wrap;gap:4px">
+      ${LOC_STEPS.map((st,si)=>{
+        const sd = stepDetails.find(x=>x.stepIndex==si);
+        const dur = sd && sd.durationMins>0 ? sd.durationMins : null;
+        return `<div style="background:var(--s1);border:1px solid var(--border);border-radius:5px;padding:3px 8px;font-size:11px">
+          <span style="color:${st.color};font-weight:700">${st.label}</span>
+          <span style="color:var(--dim);margin-left:4px">${dur!==null?dur+'分':'--'}</span>
+        </div>`;
+      }).join('')}
+    </div>` : '';
+
   el.innerHTML = `
     <div style="background:var(--s2);border-radius:8px;padding:10px 12px;border:1px solid var(--border)">
       <div style="font-size:11px;font-weight:700;color:var(--dim);margin-bottom:5px">商品内訳</div>
       ${itemRows||'<div style="font-size:12px;color:var(--dim)">データなし</div>'}
       <div style="font-size:11px;font-weight:700;color:var(--dim);margin:8px 0 5px">待ち時間実績</div>
       <div style="font-size:13px;font-weight:700">${isShip?`受付から完了まで ${h.waitMinutes||'-'}日`:`完了まで ${h.waitMinutes||'-'}分`}</div>
+      ${stepRowsHtml}
     </div>`;
   el.style.display='block';
 }
@@ -2035,9 +2059,10 @@ async function renderAnalytics() {
   if(!anAllHistory.length){
     const res=await api('getHistory',{year:anYear,month:''});
     if(!res) return;
-    anAllHistory = res.history || [];
-    window._stepAvgCache = res.stepAvg || {};
-    console.log('stepAvg loaded:', window._stepAvgCache);
+    anAllHistory       = res.history     || [];
+    window._stepAvgCache  = res.stepAvg     || {};
+    window._prodAvgCache  = res.prodAvg     || {};
+    window._shipAvgCache  = res.shipAvgDays !== undefined ? res.shipAvgDays : null;
   }
   const sum=hist=>hist.reduce((s,h)=>s+(h.salesItems||[]).reduce((ss,si)=>ss+Number(si.price||0),0),0);
   let filtered=anAllHistory;
@@ -2081,17 +2106,44 @@ async function renderAnalytics() {
       <div style="font-size:13px;font-weight:700;color:var(--gold)">¥${total.toLocaleString()}</div>
     </div>`).join(''):`<div style="font-size:12px;color:var(--dim);padding:10px">データなし</div>`;
   // 行程別実績時間（キャッシュから取得）
-  const stepAvg = window._stepAvgCache || {};
+  const stepAvg    = window._stepAvgCache || {};
+  const prodAvg    = window._prodAvgCache || {};
+  const shipAvgDays= window._shipAvgCache;
   document.getElementById('step-stat-grid').innerHTML = LOC_STEPS.map((st,si) => {
     const avg = stepAvg[String(si)];
     const hasData = avg !== undefined && avg !== null;
     return `<div class="ssc">
       <div class="ssc-who" style="color:${st.color}">${st.who}</div>
       <div class="ssc-lbl">${st.label}</div>
-      <div class="ssc-val" style="color:${hasData ? 'var(--gold)' : 'var(--dim)'}">${hasData ? avg : '--'}</div>
-      <div style="font-size:10px;color:var(--dim)">分(実績平均)</div>
+      <div style="font-size:15px;font-weight:900;color:${hasData?'var(--gold)':'var(--dim)'}">
+        ${hasData ? avg+'分(平均)' : '--'}
+      </div>
     </div>`;
   }).join('');
+
+  // 商品別平均時間
+  const prodAvgEl = document.getElementById('prod-avg-grid');
+  if (prodAvgEl && prodAvg && Object.keys(prodAvg).length) {
+    prodAvgEl.innerHTML = Object.entries(prodAvg).map(([name,mins])=>`
+      <div class="ssc">
+        <div class="ssc-lbl" style="font-size:11px;font-weight:700">${name}</div>
+        <div style="font-size:15px;font-weight:900;color:var(--gold)">${mins}分(平均)</div>
+      </div>`).join('');
+  } else if (prodAvgEl) {
+    prodAvgEl.innerHTML = `<div style="color:var(--dim);font-size:12px;padding:8px">データなし</div>`;
+  }
+
+  // 郵送平均日数
+  const shipEl = document.getElementById('ship-avg-days');
+  if (shipEl) {
+    if (shipAvgDays !== null && shipAvgDays !== undefined) {
+      shipEl.textContent = shipAvgDays + '日(平均)';
+    } else {
+      shipEl.textContent = 'データなし';
+      shipEl.style.color = 'var(--dim)';
+      shipEl.style.fontSize = '14px';
+    }
+  }
 }
 
 document.getElementById('csv-btn').addEventListener('click',async()=>{const res=await api('exportCSV',{});if(res?.url)window.open(res.url,'_blank');});
@@ -2106,7 +2158,7 @@ document.querySelectorAll('.tab').forEach(tab=>{
     tab.classList.add('on');
     document.getElementById('page-'+tab.dataset.tab).classList.add('on');
     if(tab.dataset.tab==='history'){historyData=[];renderHistory();}
-    if(tab.dataset.tab==='analytics'){anAllHistory=[];window._stepAvgCache={};renderAnalytics();}
+    if(tab.dataset.tab==='analytics'){anAllHistory=[];window._stepAvgCache={};window._prodAvgCache={};window._shipAvgCache=null;renderAnalytics();}
   });
 });
 
