@@ -365,13 +365,9 @@ function handleSaveOrderFast(data) {
     // 郵送は7ステップ、現地は6ステップ
     var nSteps = data.deliveryType === 'shipping' ? 7 : 6;
     for (var si = 0; si < nSteps; si++) {
-      var isDone      = (si === 0 && it.step0Done) ? 1 : 0;
-      var stepAt      = (si === 0 && it.step0Done) ? (it.step0At||'') : '';
-      // 受付完了時は2値化の startedAt も同時に設定（時間計算を正確にするため）
-      var startedAt   = (si === 0) ? stepAt : (si === 1 && it.step0Done ? (it.step0At||'') : '');
-      var completedAt = (si === 0) ? stepAt : '';
-      var durMins     = isDone ? 0 : '';
-      stepRows.push([stepIds[si]||Utilities.getUuid(), it.id, si, isDone, startedAt, completedAt, durMins]);
+      var isDone = (si === 0 && it.step0Done) ? 1 : 0;
+      var stepAt = (si === 0 && it.step0Done) ? (it.step0At||'') : '';
+      stepRows.push([stepIds[si]||Utilities.getUuid(), it.id, si, isDone, stepAt, stepAt, isDone?0:'']);
     }
   });
 
@@ -436,29 +432,23 @@ function handleUpdateStep(data) {
     // 4. completedAtと同じ（最終手段）
     var startedAt = data.startedAt || rows[targetRow][4] || '';
 
-    // 前のステップのcompletedAtを探す（startedAtが空か完了と同時刻の場合）
+    // 前のステップのcompletedAtを探す（startedAtが空か受付と同じ時間の場合）
     if (!startedAt || startedAt === data.completedAt) {
       for (var j = 1; j < rows.length; j++) {
         if (rows[j][1] === itemId && Number(rows[j][2]) === stepIndex - 1) {
           var prevCompleted = rows[j][5];
-          if (prevCompleted) {
-            // Sheetsは日付をDateオブジェクトで返す場合があるのでISOに統一
-            startedAt = (prevCompleted instanceof Date)
-              ? prevCompleted.toISOString()
-              : String(prevCompleted);
-          }
+          if (prevCompleted) startedAt = String(prevCompleted);
           break;
         }
       }
     }
 
-    // それでもなければDBのstartedAtを使い、なければcompletedAtを使う
-    if (!startedAt) startedAt = rows[targetRow][4] ? String(rows[targetRow][4]) : data.completedAt;
+    // それでもなければcompletedAtを使う
+    if (!startedAt) startedAt = data.completedAt;
 
     sh.getRange(targetRow+1, 5).setValue(startedAt);
     sh.getRange(targetRow+1, 6).setValue(data.completedAt);
 
-    // 終了時刻もISOに統一して計算
     var start = new Date(startedAt);
     var end   = new Date(data.completedAt);
     if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {

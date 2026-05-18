@@ -1,20 +1,21 @@
 # ============================================================
-#  GAS 自動デプロイ ワークフロー
+#  GAS 自動プッシュ ワークフロー
 #
 #  src/gas_code.gs が変更されて main にプッシュされると
-#  自動的に Google Apps Script へデプロイします。
+#  Google Apps Script エディタのコードを自動更新します。
+#  ※ デプロイ（公開バージョン更新）は手動で行ってください。
 #
 #  【初回セットアップ必須】
 #  GitHub リポジトリの Settings → Secrets → Actions に
 #  以下の2つを登録してください:
 #
 #    CLASP_CREDENTIALS  : ~/.clasprc.json の内容（JSON文字列）
-#    GAS_SCRIPT_ID      : Apps Script エディタの「プロジェクトの設定」に表示されるスクリプトID
+#    GAS_SCRIPT_ID      : Apps Script エディタの「プロジェクトの設定」のスクリプトID
 #
 #  ※ CLASP_CREDENTIALS の取得方法は SETUP.md を参照
 # ============================================================
 
-name: Deploy GAS
+name: Push GAS code
 
 on:
   push:
@@ -23,7 +24,7 @@ on:
       - 'src/gas_code.gs'
 
 jobs:
-  deploy:
+  push-gas:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -46,11 +47,11 @@ jobs:
           echo '{"scriptId":"${{ secrets.GAS_SCRIPT_ID }}","rootDir":"."}' > gas/.clasp.json
           cp src/gas_code.gs gas/Code.gs
 
-      - name: Push to GAS
+      - name: Push to GAS editor
         working-directory: gas
         run: clasp push --force
 
-      - name: Deploy new version
-        working-directory: gas
+      - name: Done
         run: |
-          clasp deploy --description "Auto-deploy: ${{ github.event.head_commit.message }}"
+          echo "✅ GASエディタのコードを更新しました"
+          echo "   Apps Scriptエディタで確認後、「デプロイ」→「新しいバージョンでデプロイ」を実行してください"
