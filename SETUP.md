@@ -158,3 +158,44 @@ const GAS_URL = 'ここにGASデプロイURLを貼り付け';
 - 行程の**完了チェックが入るまで**は残り時間から引かれません
 - 当日渡しのみの待ち時間を計算・表示
 - お渡し目安時刻（例：14:30）も各注文に表示
+
+---
+
+## GAS 自動デプロイ セットアップ（GitHub Actions）
+
+コードを GitHub にプッシュすると **GAS も自動でデプロイ**されます。
+初回のみ以下の手順でセットアップしてください。
+
+### 必要なもの
+- パソコン（macOS/Windows）に [Node.js](https://nodejs.org/) をインストール
+
+### 手順
+
+**1. clasp をインストール・ログイン**
+```bash
+npm install -g @google/clasp
+clasp login
+```
+ブラウザでGoogleアカウントの認証画面が開くので許可します。
+
+**2. credentials ファイルを確認**
+```bash
+cat ~/.clasprc.json
+```
+↑ 表示された JSON 全体をコピーします（長い文字列）
+
+**3. GAS スクリプトIDを確認**
+Apps Script エディタを開く → 左メニュー「⚙️ プロジェクトの設定」→
+「スクリプト ID」をコピー
+
+**4. GitHub に Secrets を登録**
+GitHub リポジトリ → Settings → Secrets and variables → Actions → New repository secret
+
+| Secret 名 | 値 |
+|-----------|---|
+| `CLASP_CREDENTIALS` | 手順2でコピーした JSON |
+| `GAS_SCRIPT_ID` | 手順3でコピーしたスクリプトID |
+
+**5. 動作確認**
+`src/gas_code.gs` を変更して `git push` すると、GitHub Actions が自動でGASにデプロイします。
+リポジトリの「Actions」タブで進捗を確認できます。

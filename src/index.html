@@ -1949,12 +1949,29 @@ function toggleHistDetail(hid) {
       }).join('')}
     </div>`;
 
+  // 郵送：登録日〜完了日の経過日数を詳しく表示
+  const waitHtml = isShip ? (() => {
+    const days = h.waitMinutes || '-';
+    const created = h.createdAt ? new Date(h.createdAt) : null;
+    const completed = h.completedAt ? new Date(h.completedAt) : null;
+    const periodStr = (created && completed)
+      ? `${created.getMonth()+1}/${created.getDate()} 〜 ${completed.getMonth()+1}/${completed.getDate()}`
+      : '';
+    return `<div style="display:flex;align-items:center;gap:10px;padding:8px;background:var(--s1);border:1px solid var(--border);border-radius:8px">
+      <div style="font-size:28px;font-weight:900;color:var(--blue);font-family:'Zen Kaku Gothic New',sans-serif;line-height:1">${days}</div>
+      <div>
+        <div style="font-size:10px;color:var(--dim)">日間（登録〜完了）</div>
+        ${periodStr?`<div style="font-size:11px;color:var(--dim2);margin-top:1px">${periodStr}</div>`:''}
+      </div>
+    </div>`;
+  })() : `<div style="font-size:13px;font-weight:700">${h.waitMinutes||'-'}分</div>`;
+
   el.innerHTML = `
     <div style="background:var(--s2);border-radius:8px;padding:10px 12px;border:1px solid var(--border)">
       <div style="font-size:11px;font-weight:700;color:var(--dim);margin-bottom:5px">商品内訳</div>
       ${itemRows||'<div style="font-size:12px;color:var(--dim)">データなし</div>'}
-      <div style="font-size:11px;font-weight:700;color:var(--dim);margin:8px 0 5px">待ち時間実績</div>
-      <div style="font-size:13px;font-weight:700">${isShip?`受付から完了まで ${h.waitMinutes||'-'}日`:`完了まで ${h.waitMinutes||'-'}分`}</div>
+      <div style="font-size:11px;font-weight:700;color:var(--dim);margin:8px 0 5px">${isShip?'経過日数実績':'待ち時間実績'}</div>
+      ${waitHtml}
       ${stepRowsHtml}
     </div>`;
   el.style.display='block';

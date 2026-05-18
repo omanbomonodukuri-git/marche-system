@@ -1,0 +1,56 @@
+# ============================================================
+#  GAS 自動デプロイ ワークフロー
+#
+#  src/gas_code.gs が変更されて main にプッシュされると
+#  自動的に Google Apps Script へデプロイします。
+#
+#  【初回セットアップ必須】
+#  GitHub リポジトリの Settings → Secrets → Actions に
+#  以下の2つを登録してください:
+#
+#    CLASP_CREDENTIALS  : ~/.clasprc.json の内容（JSON文字列）
+#    GAS_SCRIPT_ID      : Apps Script エディタの「プロジェクトの設定」に表示されるスクリプトID
+#
+#  ※ CLASP_CREDENTIALS の取得方法は SETUP.md を参照
+# ============================================================
+
+name: Deploy GAS
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/gas_code.gs'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install clasp
+        run: npm install -g @google/clasp
+
+      - name: Write clasp credentials
+        run: echo '${{ secrets.CLASP_CREDENTIALS }}' > ~/.clasprc.json
+
+      - name: Prepare GAS project
+        run: |
+          mkdir -p gas
+          echo '{"scriptId":"${{ secrets.GAS_SCRIPT_ID }}","rootDir":"."}' > gas/.clasp.json
+          cp src/gas_code.gs gas/Code.gs
+
+      - name: Push to GAS
+        working-directory: gas
+        run: clasp push --force
+
+      - name: Deploy new version
+        working-directory: gas
+        run: |
+          clasp deploy --description "Auto-deploy: ${{ github.event.head_commit.message }}"
