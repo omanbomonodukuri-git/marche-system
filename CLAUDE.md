@@ -12,8 +12,8 @@
 ## 重要URLs・認証情報
 
 ```
-GitHub リポジトリ : https://github.com/omanbomonodukuri-git/marche-system
-GitHub Pages URL  : https://omanbomonodukuri-git.github.io/marche-system/
+GitHub リポジトリ : https://github.com/omanbosan/marche-system
+GitHub Pages URL  : https://omanbosan.github.io/marche-system/
 GAS URL           : https://script.google.com/macros/s/AKfycbwQ8-M1NueHtjLf8Q1B5I6X-YTfdDUTcczYaFxRIaP4Ocq9UL-gj6rcucHZWNAGF28Ulg/exec
 スプレッドシートID : 1-27E8JVuZ3aD-cGsNCiq6WdCB6OemqghRKvx7NhjTQE
 アプリパスワード   : luke1227mb
@@ -27,16 +27,17 @@ GAS URL           : https://script.google.com/macros/s/AKfycbwQ8-M1NueHtjLf8Q1B5
 ```
 marche-system/
 ├── CLAUDE.md          # このファイル（Claude Codeへの指示）
+├── index.html         # GitHub Pages 公開用（src/index.html のコピー）
 ├── src/
-│   ├── index.html     # フロントエンド（現行バージョン）
-│   └── gas_code.gs    # GASバックエンド（現行バージョン）
+│   ├── index.html     # フロントエンド（現行バージョン・編集はこちら）
+│   └── gas_code.gs    # GASバックエンド（現行バージョン・編集はこちら）
 ├── releases/
-│   ├── index_v1.html  # 過去バージョン
-│   ├── index_v2.html
-│   ├── ...
-│   ├── gas_v1.gs
+│   ├── index_v12.html # 過去バージョン（v2〜v12）
+│   ├── gas_v13.gs     # 過去バージョン（v2〜v13）
 │   └── ...
-└── README.md
+├── gas/               # clasp用（GAS自動デプロイ設定後に使用）
+├── deploy.sh          # デプロイスクリプト
+└── SETUP.md
 ```
 
 ---
@@ -50,12 +51,16 @@ marche-system/
 - コミットメッセージには変更内容を日本語で明記
 
 ```bash
-# 例：リビジョンアップの手順
-cp src/index.html releases/index_v8.html
-cp src/gas_code.gs releases/gas_v8.gs
-# → 編集作業
+# 例：リビジョンアップの手順（deploy.sh が自動で行う）
+./deploy.sh all "変更内容の説明"
+
+# または手動で行う場合
+cp src/index.html releases/index_v14.html
+cp src/gas_code.gs releases/gas_v14.gs
+cp src/index.html index.html
+# → src/index.html または src/gas_code.gs を編集
 git add -A
-git commit -m "v8: 工程別実績時間の集計修正、商品名表示バグ修正"
+git commit -m "v14: 変更内容"
 git push
 ```
 
@@ -64,9 +69,8 @@ git push
 #### フロントエンド（GitHub Pages）
 ```bash
 # src/index.html を編集後
-git add src/index.html releases/
-git commit -m "vN: 変更内容の説明"
-git push origin main
+./deploy.sh frontend "変更内容の説明"
+# → リビジョン保存 + index.html更新 + push を自動実行
 # → GitHub Pagesが自動でデプロイ（数分かかる場合あり）
 ```
 
