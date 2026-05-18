@@ -3,3 +3,8 @@
 gas/.clasp.json
 gas/node_modules/
 *.swp
+.claude/
+# ルートに残っている旧形式ファイル
+gas_code(*.gs
+index(*.html
+index(*.txt
