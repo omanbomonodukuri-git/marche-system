@@ -1928,26 +1928,20 @@ function toggleHistDetail(hid) {
       <div style="font-size:12px;font-weight:700;color:var(--gold)">¥${Number(si.price||0).toLocaleString()}</div>
     </div>`).join('');
   const isShip = h.deliveryType==='shipping';
-  const stepDefs = isShip ? SHIP_STEPS : LOC_STEPS;
+  // 工程別実績時間（historyのstepDetailsから）
   const stepDetails = h.stepDetails || [];
-  // 受付(index=0)は自動完了のため除外し、各工程の実績時間を表示
-  const totalStepMins = stepDetails.filter(sd=>sd.stepIndex>0).reduce((s,sd)=>s+Number(sd.durationMins||0),0);
-  const stepRowsHtml = `
-    <div style="font-size:11px;font-weight:700;color:var(--dim);margin:8px 0 5px">
-      工程別実績時間
-      ${totalStepMins>0?`<span style="font-weight:400;color:var(--text);margin-left:6px">合計 ${totalStepMins}分</span>`:''}
-    </div>
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:4px">
-      ${stepDefs.map((st,si)=>{
-        if(si===0) return '';
+  const stepRowsHtml = !isShip && stepDetails.length ? `
+    <div style="font-size:11px;font-weight:700;color:var(--dim);margin:8px 0 5px">工程別実績時間</div>
+    <div style="display:flex;flex-wrap:wrap;gap:4px">
+      ${LOC_STEPS.map((st,si)=>{
         const sd = stepDetails.find(x=>x.stepIndex==si);
-        const dur = sd && Number(sd.durationMins)>0 ? Number(sd.durationMins) : null;
-        return `<div style="background:var(--s1);border:1px solid var(--border);border-radius:6px;padding:5px 7px">
-          <div style="font-size:10px;font-weight:700;color:${st.color};margin-bottom:1px">${st.label}</div>
-          <div style="font-size:13px;font-weight:700;color:${dur!==null?'var(--text)':'var(--dim2)'}">${dur!==null?dur+'分':'--'}</div>
+        const dur = sd && sd.durationMins>0 ? sd.durationMins : null;
+        return `<div style="background:var(--s1);border:1px solid var(--border);border-radius:5px;padding:3px 8px;font-size:11px">
+          <span style="color:${st.color};font-weight:700">${st.label}</span>
+          <span style="color:var(--dim);margin-left:4px">${dur!==null?dur+'分':'--'}</span>
         </div>`;
       }).join('')}
-    </div>`;
+    </div>` : '';
 
   el.innerHTML = `
     <div style="background:var(--s2);border-radius:8px;padding:10px 12px;border:1px solid var(--border)">

@@ -312,25 +312,28 @@ function handleGetHistory(year, month) {
     h.salesItems = sales.filter(function(s){ return s.historyId === h.id; });
     var ord = orderMap[h.orderId];
     if (ord) h.channel = ord.channel || 'marche';
-    // 工程別実績（現地・郵送とも）
-    var ordItems = allItems.filter(function(it){ return it.orderId === h.orderId; });
-    var stepDetailArr = [];
-    ordItems.forEach(function(it){
-      (stepsByItem[it.id] || []).forEach(function(s){
-        if (s.done && Number(s.durationMins) > 0) {
-          stepDetailArr.push({ stepIndex: Number(s.stepIndex), durationMins: Number(s.durationMins) });
-        }
+    // 工程別実績（現地のみ）
+    if (h.deliveryType !== 'shipping') {
+      var ordItems = allItems.filter(function(it){ return it.orderId === h.orderId; });
+      var stepDetails = [];
+      ordItems.forEach(function(it){
+        (stepsByItem[it.id] || []).forEach(function(s){
+          if (s.done && Number(s.durationMins) > 0) {
+            stepDetails.push({ stepIndex: Number(s.stepIndex), durationMins: Number(s.durationMins) });
+          }
+        });
       });
-    });
-    var sdMap = {};
-    stepDetailArr.forEach(function(sd){
-      var si = String(sd.stepIndex);
-      if (!sdMap[si]) sdMap[si] = 0;
-      sdMap[si] += sd.durationMins;
-    });
-    h.stepDetails = Object.keys(sdMap).map(function(si){
-      return { stepIndex: Number(si), durationMins: sdMap[si] };
-    });
+      // stepIndex別に合算
+      var sdMap = {};
+      stepDetails.forEach(function(sd){
+        var si = String(sd.stepIndex);
+        if (!sdMap[si]) sdMap[si] = 0;
+        sdMap[si] += sd.durationMins;
+      });
+      h.stepDetails = Object.keys(sdMap).map(function(si){
+        return { stepIndex: Number(si), durationMins: sdMap[si] };
+      });
+    }
   });
 
   return ok({ history: hist, stepAvg: stepAvg, prodAvg: prodAvg, shipAvgDays: shipAvgDays });
