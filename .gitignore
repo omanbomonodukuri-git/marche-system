@@ -1,0 +1,5 @@
+.DS_Store
+旧版/
+gas/.clasp.json
+gas/node_modules/
+*.swp
