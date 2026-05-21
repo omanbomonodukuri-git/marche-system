@@ -1097,7 +1097,7 @@ function tapStep(btn, deliveryType) {
       // GAS完了記録
       const items4hist = (order.items||[]).map(it => {
         const pr = S.products.find(x=>x.id===it.pid);
-        return { pid:it.pid, productName:pr?.name||'', price:it.price||pr?.price||0, paymentMethod:it.paymentMethod||'' };
+        return { pid:it.pid, productName:pr?.name||'', typeName:it.typeName||'', price:it.price||pr?.price||0, paymentMethod:it.paymentMethod||'' };
       });
       apiAsync('completeOrder', { orderId:order.id, num:order.num, completedAt:now, deliveryType:order.deliveryType, channel:order.channel||'marche', items:items4hist });
     } else {
@@ -1888,7 +1888,11 @@ async function renderHistory() {
   [...historyData].sort((a,b)=>new Date(b.completedAt)-new Date(a.completedAt)).forEach(h=>{
     const iMap={};
     (h.salesItems||[]).forEach(si=>{iMap[si.productName]=(iMap[si.productName]||0)+1;});
-    const itemStr=Object.entries(iMap).map(([n,c])=>c>1?`${n}×${c}`:n).join('、');
+    // "[タイプ名]" 部分をカラー表示
+    const itemStr=Object.entries(iMap).map(([n,c])=>{
+      const label=(c>1?`${n}×${c}`:n).replace(/\[(.+?)\]/g,'<span style="color:var(--blue);font-weight:700">[$1]</span>');
+      return label;
+    }).join('、');
     const htotal=(h.salesItems||[]).reduce((s,si)=>s+Number(si.price||0),0);
     const isShip=h.deliveryType==='shipping';
     const card=document.createElement('div'); card.className='hcard'; card.style.flexDirection='column';
@@ -1925,12 +1929,15 @@ function toggleHistDetail(hid) {
   if (el.style.display !== 'none') { el.style.display='none'; return; }
   const h = historyData.find(x=>x.id===hid);
   if (!h) return;
-  const itemRows = (h.salesItems||[]).map(si=>`
+  const itemRows = (h.salesItems||[]).map(si=>{
+    const nameHtml=(si.productName||'-').replace(/\[(.+?)\]/g,'<span style="color:var(--blue);font-weight:700"> [$1]</span>');
+    return `
     <div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border)">
-      <div style="flex:1;font-size:12px;font-weight:600">${si.productName||'-'}</div>
+      <div style="flex:1;font-size:12px;font-weight:600">${nameHtml}</div>
       <div style="font-size:11px;color:var(--dim)">${PAY_LABELS[si.paymentMethod]||'現金'}</div>
       <div style="font-size:12px;font-weight:700;color:var(--gold)">¥${Number(si.price||0).toLocaleString()}</div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
   const isShip = h.deliveryType==='shipping';
   const stepDefs = isShip ? SHIP_STEPS : LOC_STEPS;
   const stepDetails = h.stepDetails || [];

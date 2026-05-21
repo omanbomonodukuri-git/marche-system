@@ -543,12 +543,9 @@ function handleCompleteOrder(data) {
     hId, data.orderId, data.num, data.completedAt, waitMins, data.deliveryType
   ]);
   (data.items||[]).forEach(function(it){
-    // タイプがある場合は "商品名 [タイプ名]" で保存
-    var displayName = it.productName || '';
-    if (it.typeName) displayName += ' [' + it.typeName + ']';
     ss.getSheetByName(SH.SALES).appendRow([
       Utilities.getUuid(), hId, data.orderId,
-      it.pid, displayName, it.price, it.paymentMethod, data.completedAt
+      it.pid, it.productName, it.price, it.paymentMethod, data.completedAt
     ]);
   });
   return ok({ hId: hId });
