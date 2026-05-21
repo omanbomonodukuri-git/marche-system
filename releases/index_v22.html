@@ -1455,26 +1455,24 @@ async function saveOrder() {
   S.orders.push(order);
   localStorage.setItem('mb_last_num',String(num));
 
-  // 注文登録時に在庫を引き落とし（リトライ付き・ローディング非表示）
-  const isShip = T.delivery === 'shipping';
+  // 注文登録時に在庫を引き落とし
   items.forEach(it => {
     const p = S.products.find(x=>x.id===it.pid);
     if (!p) return;
+    const isShip = T.delivery === 'shipping';
     if (it.typeId && (p.types||[]).length > 0) {
       const typeObj = p.types.find(t=>t.id===it.typeId);
       if (typeObj) {
         if (isShip) typeObj.stockShip = Math.max(0,(typeObj.stockShip||0)-1);
         else        typeObj.stockLoc  = Math.max(0,(typeObj.stockLoc ||0)-1);
-        api('adjustStock',{ productId:p.id, typeId:it.typeId,
-          stockLoc:typeObj.stockLoc||0, stockShip:typeObj.stockShip||0,
-          isShip, reason:'order' }, 2, false);
+        apiAsync('adjustStock',{ productId:p.id, typeId:it.typeId,
+          stockLoc:typeObj.stockLoc||0, stockShip:typeObj.stockShip||0, reason:'order' });
       }
     } else {
       if (isShip) p.stockShip = Math.max(0,(p.stockShip||0)-1);
       else        p.stockLoc  = Math.max(0,(p.stockLoc ||0)-1);
-      api('adjustStock',{ productId:p.id,
-        stockLoc:p.stockLoc||0, stockShip:p.stockShip||0,
-        isShip, reason:'order' }, 2, false);
+      apiAsync('adjustStock',{ productId:p.id,
+        stockLoc:p.stockLoc||0, stockShip:p.stockShip||0, reason:'order' });
     }
   });
 
@@ -1520,26 +1518,24 @@ document.getElementById('item-ok').addEventListener('click',async()=>{
 function confirmDeleteOrder(oid) {
   const o=S.orders.find(x=>x.id===oid);
   showConfirm(`#${String(o?.num||'').padStart(3,'0')} を削除しますか？`,'削除後は元に戻せません',async()=>{
-    // 在庫を戻す（リトライ付き・ローディング非表示）
-    const isShipDel = o.deliveryType === 'shipping';
+    // 在庫を戻す
     (o.items||[]).forEach(it => {
       const p = S.products.find(x=>x.id===it.pid);
       if (!p) return;
+      const isShip = o.deliveryType === 'shipping';
       if (it.typeId && (p.types||[]).length > 0) {
         const typeObj = p.types.find(t=>t.id===it.typeId);
         if (typeObj) {
-          if (isShipDel) typeObj.stockShip = (typeObj.stockShip||0)+1;
-          else           typeObj.stockLoc  = (typeObj.stockLoc ||0)+1;
-          api('adjustStock',{ productId:p.id, typeId:it.typeId,
-            stockLoc:typeObj.stockLoc||0, stockShip:typeObj.stockShip||0,
-            isShip:isShipDel, reason:'delete' }, 2, false);
+          if (isShip) typeObj.stockShip = (typeObj.stockShip||0)+1;
+          else        typeObj.stockLoc  = (typeObj.stockLoc ||0)+1;
+          apiAsync('adjustStock',{ productId:p.id, typeId:it.typeId,
+            stockLoc:typeObj.stockLoc||0, stockShip:typeObj.stockShip||0, reason:'delete' });
         }
       } else {
-        if (isShipDel) p.stockShip = (p.stockShip||0)+1;
-        else           p.stockLoc  = (p.stockLoc ||0)+1;
-        api('adjustStock',{ productId:p.id,
-          stockLoc:p.stockLoc||0, stockShip:p.stockShip||0,
-          isShip:isShipDel, reason:'delete' }, 2, false);
+        if (isShip) p.stockShip = (p.stockShip||0)+1;
+        else        p.stockLoc  = (p.stockLoc ||0)+1;
+        apiAsync('adjustStock',{ productId:p.id,
+          stockLoc:p.stockLoc||0, stockShip:p.stockShip||0, reason:'delete' });
       }
     });
     S.orders=S.orders.filter(x=>x.id!==oid);
@@ -1673,7 +1669,7 @@ function removeType(idx) {
 document.getElementById('btn-add-type').addEventListener('click', () => {
   const name = document.getElementById('inp-type-name').value.trim();
   if (!name) { toast('タイプ名を入力してください'); return; }
-  T.types.push({ id: uid(), name, stock: 0, stockLoc: 0, stockShip: 0 });
+  T.types.push({ id: uid(), name, stock: 0 });
   document.getElementById('inp-type-name').value = '';
   renderTypesList();
 });

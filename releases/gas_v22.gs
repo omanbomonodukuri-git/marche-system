@@ -644,17 +644,12 @@ function handleAdjustStock(data) {
       break;
     }
   }
-  // ログ記録（stockLoc/stockShip を記録）
+  // ログ記録
   const logSh = ss.getSheetByName(SH.STOCK_LOG);
   if (logSh) {
-    var logNote = (data.typeId ? 'type:'+data.typeId+' ' : '')
-      + 'loc:' + (data.stockLoc||0) + ' ship:' + (data.stockShip||0)
-      + (data.isShip ? ' [郵送]' : ' [現地]');
     logSh.appendRow([
-      Utilities.getUuid(), data.productId,
-      data.isShip ? (data.stockShip||0) : (data.stockLoc||0),
-      (data.reason||'') + ' ' + logNote,
-      new Date().toISOString()
+      Utilities.getUuid(), data.productId, data.stock,
+      data.reason||'', new Date().toISOString()
     ]);
   }
   return ok({ adjusted: true });
