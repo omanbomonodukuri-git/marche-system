@@ -190,17 +190,13 @@ body{background:var(--bg);color:var(--text);font-family:'Noto Sans JP',sans-seri
 .btn-add{background:var(--gold);color:#fff;border:none;border-radius:7px;padding:7px 13px;font-size:12px;font-weight:700;cursor:pointer;font-family:'Zen Kaku Gothic New',sans-serif}
 .btn-add:active{background:var(--goldl)}
 .pgrid{display:grid;grid-template-columns:1fr 1fr;gap:7px}
-.pcard{background:var(--s1);border:1px solid var(--border);border-radius:9px;padding:11px;position:relative;box-shadow:0 1px 3px rgba(0,0,0,.05);transition:opacity .15s,border-color .15s,background .15s}
-.pcard.dragging{opacity:.35;border:2px dashed var(--gold)}
-.pcard.drag-over{border:2px solid var(--gold);background:rgba(184,134,11,.06)}
-.drag-handle{position:absolute;bottom:7px;right:7px;width:22px;height:22px;display:flex;align-items:center;justify-content:center;color:var(--dim2);font-size:13px;cursor:grab;touch-action:none;user-select:none;border-radius:4px}
-.drag-handle:active{cursor:grabbing;color:var(--gold)}
+.pcard{background:var(--s1);border:1px solid var(--border);border-radius:9px;padding:11px;position:relative;box-shadow:0 1px 3px rgba(0,0,0,.05)}
 .pcard-name{font-size:13px;font-weight:700;color:var(--text);padding-right:50px;margin-bottom:3px}
 .pcard-info{font-size:11px;color:var(--dim);margin-bottom:5px}
 .pcard-stock{font-size:13px;font-weight:700}
 .pcard-stock.low{color:var(--red)}
 .pcard-stock.ok{color:var(--green)}
-.pcard-steps{display:flex;flex-direction:column;gap:2px;margin-top:5px;padding-bottom:16px}
+.pcard-steps{display:flex;flex-direction:column;gap:2px;margin-top:5px}
 .pcard-step-row{display:flex;align-items:center;gap:5px;font-size:10px}
 .pcard-step-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
 .pcard-btns{position:absolute;top:8px;right:8px;display:flex;gap:4px}
@@ -1565,94 +1561,19 @@ const TQ_STEPS_LOC  = LOC_STEPS;
 const TQ_STEPS_SHIP = SHIP_STEPS;
 let stockVal=0, stockAdjVal=0;
 
-// ---- ドラッグ並び替え用状態 ----
-let _dragSrcPid = null;
-let _dragTgtPid = null;
-
-function _reorderProducts(fromPid, toPid) {
-  const fi = S.products.findIndex(x=>x.id===fromPid);
-  const ti = S.products.findIndex(x=>x.id===toPid);
-  if (fi<0 || ti<0 || fi===ti) return;
-  const [moved] = S.products.splice(fi,1);
-  S.products.splice(ti,0,moved);
-  renderMaster();
-  api('reorderProducts',{ids: S.products.map(x=>x.id)});
-  toast('順番を変更しました');
-}
-
-function _initCardDrag(card, pid) {
-  // --- Desktop drag & drop ---
-  card.draggable = true;
-  card.addEventListener('dragstart', e=>{
-    _dragSrcPid = pid;
-    e.dataTransfer.effectAllowed = 'move';
-    setTimeout(()=>card.classList.add('dragging'),0);
-  });
-  card.addEventListener('dragend', ()=>{
-    card.classList.remove('dragging');
-    document.querySelectorAll('#pgrid .pcard').forEach(c=>c.classList.remove('drag-over'));
-    _dragSrcPid = null; _dragTgtPid = null;
-  });
-  card.addEventListener('dragover', e=>{
-    if (!_dragSrcPid || _dragSrcPid===pid) return;
-    e.preventDefault();
-    document.querySelectorAll('#pgrid .pcard').forEach(c=>c.classList.remove('drag-over'));
-    card.classList.add('drag-over');
-    _dragTgtPid = pid;
-  });
-  card.addEventListener('dragleave', ()=>{ card.classList.remove('drag-over'); });
-  card.addEventListener('drop', e=>{
-    e.preventDefault();
-    document.querySelectorAll('#pgrid .pcard').forEach(c=>c.classList.remove('drag-over'));
-    if (_dragSrcPid && _dragSrcPid!==pid) _reorderProducts(_dragSrcPid, pid);
-    _dragSrcPid = null; _dragTgtPid = null;
-  });
-
-  // --- Touch drag ---
-  const handle = card.querySelector('.drag-handle');
-  if (!handle) return;
-  handle.addEventListener('touchstart', e=>{
-    _dragSrcPid = pid;
-    card.classList.add('dragging');
-    e.stopPropagation();
-  }, {passive:true});
-  handle.addEventListener('touchmove', e=>{
-    if (!_dragSrcPid) return;
-    e.preventDefault();
-    const t = e.touches[0];
-    const allCards = document.querySelectorAll('#pgrid .pcard');
-    _dragTgtPid = null;
-    allCards.forEach(c=>{
-      c.classList.remove('drag-over');
-      if (c.dataset.pid===pid) return;
-      const r = c.getBoundingClientRect();
-      if (t.clientX>=r.left && t.clientX<=r.right && t.clientY>=r.top && t.clientY<=r.bottom) {
-        c.classList.add('drag-over'); _dragTgtPid = c.dataset.pid;
-      }
-    });
-  }, {passive:false});
-  handle.addEventListener('touchend', ()=>{
-    card.classList.remove('dragging');
-    document.querySelectorAll('#pgrid .pcard').forEach(c=>c.classList.remove('drag-over'));
-    if (_dragSrcPid && _dragTgtPid && _dragSrcPid!==_dragTgtPid) {
-      _reorderProducts(_dragSrcPid, _dragTgtPid);
-    }
-    _dragSrcPid = null; _dragTgtPid = null;
-  });
-}
-
 function renderMaster() {
   const g=document.getElementById('pgrid');
   if(!S.products.length){g.innerHTML=`<div style="grid-column:1/-1;text-align:center;padding:30px;color:var(--dim)">商品を追加してください</div>`;return;}
   g.innerHTML='';
   S.products.forEach(p=>{
     const card=document.createElement('div'); card.className='pcard';
-    card.dataset.pid = p.id;
     const hasTypes = (p.types||[]).length > 0;
     const locStock  = hasTypes ? (p.types||[]).reduce((s,t)=>s+Number(t.stockLoc||0),0) : Number(p.stockLoc||0);
     const shipStock = hasTypes ? (p.types||[]).reduce((s,t)=>s+Number(t.stockShip||0),0) : Number(p.stockShip||0);
     const totalStock = locStock + shipStock;
     const isLow = totalStock>0 && totalStock<=p.stockWarn;
+    const stockColor = totalStock===0?'var(--dim)':isLow?'var(--red)':'var(--green)';
+    const stockTxt = `現地${locStock} / 郵送${shipStock}`;
     const stepsHtml=LOC_STEPS.map((st,si)=>`
       <div class="pcard-step-row">
         <div class="pcard-step-dot" style="background:${st.color}"></div>
@@ -1672,10 +1593,8 @@ function renderMaster() {
         <span style="font-size:11px;color:var(--green);font-weight:600">📦 郵送 ${shipStock}個</span>
       </div>
       ${hasTypes?`<div style="display:flex;flex-direction:column;gap:3px;margin-top:4px">${(p.types||[]).map(t=>`<div style="font-size:10px;background:var(--s2);border:1px solid var(--border);border-radius:5px;padding:4px 8px"><div style="font-weight:700;margin-bottom:2px">${t.name}</div><div style="display:flex;gap:10px"><span style="color:var(--blue)">🏪 ${t.stockLoc||0}個</span><span style="color:var(--green)">📦 ${t.stockShip||0}個</span></div></div>`).join('')}</div>`:''}
-      <div class="pcard-steps">${stepsHtml}</div>
-      <div class="drag-handle" title="ドラッグして並び替え">⋮⋮</div>`;
+      <div class="pcard-steps">${stepsHtml}</div>`;
     g.appendChild(card);
-    _initCardDrag(card, p.id);
   });
 }
 

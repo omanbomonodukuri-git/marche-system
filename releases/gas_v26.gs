@@ -82,12 +82,11 @@ function doGet(e) {
       case 'completeOrder':  return handleCompleteOrder(data);
       case 'deleteOrder':    return handleDeleteOrder(data.orderId||'');
       case 'deleteHistory':  return handleDeleteHistory(data);
-      case 'saveProduct':     return handleSaveProduct(data.product||data);
-      case 'deleteProduct':   return handleDeleteProduct(data.productId||'');
-      case 'reorderProducts': return handleReorderProducts(data);
-      case 'adjustStock':     return handleAdjustStock(data);
-      case 'updateHistory':   return handleUpdateHistory(data);
-      case 'exportCSV':       return handleExportCSV();
+      case 'saveProduct':    return handleSaveProduct(data.product||data);
+      case 'deleteProduct':  return handleDeleteProduct(data.productId||'');
+      case 'adjustStock':    return handleAdjustStock(data);
+      case 'updateHistory':  return handleUpdateHistory(data);
+      case 'exportCSV':      return handleExportCSV();
       default:               return err('Unknown action: ' + action);
     }
   } catch(ex) {
@@ -616,39 +615,6 @@ function handleDeleteProduct(productId) {
     SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(SH.PRODUCTS), 0, productId
   );
   return ok({ deleted: true });
-}
-
-function handleReorderProducts(data) {
-  var ids = data.ids || [];
-  if (!ids.length) return err('ids missing');
-  var ss  = SpreadsheetApp.openById(SPREADSHEET_ID);
-  var sh  = ss.getSheetByName(SH.PRODUCTS);
-  var all = sh.getDataRange().getValues();
-  if (all.length < 2) return ok({ reordered: true });
-
-  var header = all[0];
-  var rowMap  = {};
-  for (var i = 1; i < all.length; i++) {
-    var rowId = String(all[i][0]);
-    rowMap[rowId] = all[i];
-  }
-
-  // IDリスト順に並べ直す（リストにないIDは末尾に追加）
-  var newRows = [];
-  ids.forEach(function(id) {
-    if (rowMap[id]) { newRows.push(rowMap[id]); delete rowMap[id]; }
-  });
-  Object.keys(rowMap).forEach(function(id) { newRows.push(rowMap[id]); });
-
-  // ヘッダー行を除くデータ範囲を一括上書き
-  var dataRange = sh.getRange(2, 1, all.length - 1, header.length);
-  // 新しい行数に合わせてバッファ作成
-  var buf = newRows.map(function(r){ return r; });
-  // 不足分を空行で埋める（行数が変わることは通常ないが安全のため）
-  while (buf.length < all.length - 1) buf.push(header.map(function(){ return ''; }));
-  dataRange.setValues(buf.slice(0, all.length - 1));
-
-  return ok({ reordered: true });
 }
 
 // ============================================================
