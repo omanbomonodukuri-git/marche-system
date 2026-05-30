@@ -463,8 +463,11 @@ body{background:var(--bg);color:var(--text);font-family:'Noto Sans JP',sans-seri
   <div class="pgrid" id="pgrid"></div>
   <div style="margin-top:14px;padding:10px 12px;background:var(--s2);border:1px solid var(--border);border-radius:8px;font-size:12px;color:var(--dim)">
     <div style="font-weight:700;color:var(--text);margin-bottom:6px">🔧 データ修復</div>
-    <div style="margin-bottom:8px">過去の売上・履歴データに種類名（タイプ）が反映されていない場合は下のボタンで修正できます。</div>
-    <button id="btn-fix-type-names" style="background:var(--blue);color:#fff;border:none;border-radius:6px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer">過去データの種類名を反映する</button>
+    <div style="margin-bottom:8px">種類（タイプ）名がitemsシートやsalesシートに反映されていない場合に修正できます。</div>
+    <div style="display:flex;flex-wrap:wrap;gap:7px">
+      <button id="btn-fix-item-types" style="background:var(--orange);color:#fff;border:none;border-radius:6px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer;touch-action:manipulation">⚠️ 受注データの種類名を修復する</button>
+      <button id="btn-fix-type-names" style="background:var(--blue);color:#fff;border:none;border-radius:6px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer;touch-action:manipulation">過去データ（売上）の種類名を反映する</button>
+    </div>
   </div>
 </div>
 
@@ -1910,7 +1913,7 @@ async function saveItemEdit() {
       it.paymentMethod = g.payment;
       it.optionFee = optFee;
       it.doubleBinarize = optFee > 0;
-      apiAsync('updateItem', { itemId:it.id, price:g.price, paymentMethod:g.payment, optionFee:optFee, doubleBinarize:optFee>0 });
+      apiAsync('updateItem', { itemId:it.id, price:g.price, paymentMethod:g.payment, optionFee:optFee, doubleBinarize:optFee>0, typeId:g.tid, typeName:g.typeName });
     });
 
     // 2. 削除（末尾から）
@@ -2404,11 +2407,21 @@ function confirmDeleteProduct(pid) {
   });
 }
 
+document.getElementById('btn-fix-item-types').addEventListener('click', async () => {
+  const btn = document.getElementById('btn-fix-item-types');
+  btn.disabled = true; btn.textContent = '処理中...';
+  const res = await api('fixItemTypes', {}, 1, true);
+  btn.disabled = false; btn.textContent = '⚠️ 受注データの種類名を修復する';
+  if (res) {
+    toast(`✅ ${res.fixed}件のitemsシートの種類名を修復しました`);
+    await loadAll(false);  // 画面に反映
+  }
+});
 document.getElementById('btn-fix-type-names').addEventListener('click', async () => {
   const btn = document.getElementById('btn-fix-type-names');
   btn.disabled = true; btn.textContent = '処理中...';
   const res = await api('fixSalesTypeNames', {}, 1, true);
-  btn.disabled = false; btn.textContent = '過去データの種類名を反映する';
+  btn.disabled = false; btn.textContent = '過去データ（売上）の種類名を反映する';
   if (res) toast(`✅ ${res.result||'完了'}`);
 });
 

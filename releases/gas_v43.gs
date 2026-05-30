@@ -91,7 +91,6 @@ function doGet(e) {
       case 'updateHistory':     return handleUpdateHistory(data);
       case 'exportCSV':         return handleExportCSV();
       case 'fixSalesTypeNames': return ok({ result: fixSalesTypeNames() });
-      case 'fixItemTypes':      return handleFixItemTypes();
       default:               return err('Unknown action: ' + action);
     }
   } catch(ex) {
@@ -375,17 +374,6 @@ function handleSaveOrderFast(data) {
   const iSh = ss.getSheetByName(SH.ITEMS);
   const sSh = ss.getSheetByName(SH.STEPS);
 
-  // typeId→typeName 補完用マップをproductsシートから構築
-  var typeNameMap = {};
-  try {
-    sheetToObjects(ss.getSheetByName(SH.PRODUCTS)).forEach(function(p){
-      try {
-        var types = JSON.parse(p.typesJson || '[]');
-        (types||[]).forEach(function(t){ typeNameMap[String(t.id)] = t.name || ''; });
-      } catch(e){}
-    });
-  } catch(e){}
-
   // 注文ヘッダー
   oSh.appendRow([
     data.id, data.num, data.note||'', data.deliveryType,
@@ -394,15 +382,10 @@ function handleSaveOrderFast(data) {
 
   var itemRows = [], stepRows = [];
   (data.items||[]).forEach(function(it){
-    // typeNameが空でtypeIdがある場合はproductsから補完
-    var resolvedTypeName = it.typeName || '';
-    if (!resolvedTypeName && it.typeId) {
-      resolvedTypeName = typeNameMap[String(it.typeId)] || '';
-    }
     itemRows.push([
       it.id, data.id, it.pid, it.idx||0, it.totalOf||1,
       0, 0, it.price||0, it.paymentMethod||'', 0, 0,
-      it.typeId||'', resolvedTypeName,
+      it.typeId||'', it.typeName||'',
       it.optionFee||0, it.optionNote||'', it.doubleBinarize?1:0
     ]);
     var stepIds = it.stepIds || [];
@@ -533,8 +516,6 @@ function handleUpdateItem(data) {
       if (data.paymentMethod !== undefined) sh.getRange(i+1,9).setValue(data.paymentMethod);
       if (data.onHold        !== undefined) sh.getRange(i+1,10).setValue(data.onHold?1:0);
       if (data.paid          !== undefined) sh.getRange(i+1,11).setValue(data.paid?1:0);
-      if (data.typeId        !== undefined) sh.getRange(i+1,12).setValue(data.typeId||'');
-      if (data.typeName      !== undefined) sh.getRange(i+1,13).setValue(data.typeName||'');
       if (data.optionFee     !== undefined) sh.getRange(i+1,14).setValue(data.optionFee||0);
       if (data.optionNote    !== undefined) sh.getRange(i+1,15).setValue(data.optionNote||'');
       if (data.doubleBinarize!== undefined) sh.getRange(i+1,16).setValue(data.doubleBinarize?1:0);
@@ -877,40 +858,6 @@ function handleExportCSV() {
 //  ※ fixAllSheets() を実行してから使うこと
 //  GASエディタから直接実行する（APIからは不要）
 // ============================================================
-// ============================================================
-//  既存itemsシートのtypeName空白をtypeIdから補完
-// ============================================================
-function handleFixItemTypes() {
-  invalidateCache();
-  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-
-  // products から typeId→typeName マップを作成
-  var typeNameMap = {};
-  sheetToObjects(ss.getSheetByName(SH.PRODUCTS)).forEach(function(p){
-    try {
-      var types = JSON.parse(p.typesJson || '[]');
-      (types||[]).forEach(function(t){ typeNameMap[String(t.id)] = t.name || ''; });
-    } catch(e){}
-  });
-
-  // itemsシートを直接更新
-  const iSh   = ss.getSheetByName(SH.ITEMS);
-  const iRows = iSh.getDataRange().getValues();
-  var fixed = 0;
-  for (var i = 1; i < iRows.length; i++) {
-    var typeId   = String(iRows[i][11] || '');  // col 12 = typeId (0-indexed 11)
-    var typeName = String(iRows[i][12] || '');  // col 13 = typeName (0-indexed 12)
-    if (typeId && !typeName) {
-      var name = typeNameMap[typeId];
-      if (name) {
-        iSh.getRange(i+1, 13).setValue(name);
-        fixed++;
-      }
-    }
-  }
-  return ok({ fixed: fixed });
-}
-
 function fixSalesTypeNames() {
   var ss   = SpreadsheetApp.openById(SPREADSHEET_ID);
   var iSh  = ss.getSheetByName(SH.ITEMS);
