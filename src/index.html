@@ -1579,7 +1579,11 @@ document.getElementById('item-ok').addEventListener('click',async()=>{
   const price=parseInt(document.getElementById('inp-item-price').value)||0;
   const o=S.orders.find(x=>x.id===T.editOrderIdForItem);
   if(o){(o.items||[]).forEach(it=>{it.skipBinarize=T.skipBinarize;it.skipDesign=T.skipDesign;it.paymentMethod=T.itemPayment;it.price=price;});}
+  // メインアイテムは全フィールド更新、残りのアイテムも支払い方法を更新
   await api('updateItem',{itemId:T.editItemId,price,skipBinarize:T.skipBinarize,skipDesign:T.skipDesign,paymentMethod:T.itemPayment});
+  (o?.items||[]).filter(it=>it.id!==T.editItemId).forEach(it=>{
+    apiAsync('updateItem',{itemId:it.id,paymentMethod:T.itemPayment});
+  });
   closeOverlay('ov-item'); renderLocal(); renderShipping(); updateWait(); toast('更新しました');
 });
 
