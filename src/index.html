@@ -806,6 +806,9 @@ async function loadAll(showSpinner=false) {
       it.doubleBinarize= it.doubleBinarize==1|| it.doubleBinarize===true;
       it.optionFee     = Number(it.optionFee||0);
       it.optionNote    = it.optionNote||'';
+      // typeId / typeName を文字列として保証
+      it.typeId   = it.typeId   ? String(it.typeId)   : '';
+      it.typeName = it.typeName ? String(it.typeName) : '';
       (it.steps||[]).forEach(s => { s.done = s.done==1 || s.done===true; });
     });
   });
@@ -817,6 +820,17 @@ async function loadAll(showSpinner=false) {
     p.stock        = Number(p.stock || 0);
     p.stockWarn    = Number(p.stockWarn || 3);
     p.totalMinutes = p.totalMinutes || Object.values(p.stepTimes).reduce((a,b)=>a+Number(b),0) || 15;
+    // types が未設定の場合は typesJson をパース（旧GAS互換）
+    if (!Array.isArray(p.types)) {
+      if (typeof p.typesJson === 'string' && p.typesJson) {
+        try { p.types = JSON.parse(p.typesJson); } catch{ p.types=[]; }
+      } else { p.types = []; }
+    }
+    // types 内の stockLoc/stockShip を数値保証
+    (p.types||[]).forEach(t => {
+      t.stockLoc  = Number(t.stockLoc  || 0);
+      t.stockShip = Number(t.stockShip || 0);
+    });
   });
   render();
 }
