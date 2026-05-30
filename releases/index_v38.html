@@ -1554,12 +1554,14 @@ async function saveOrder() {
       adjSent.add(key);
       const typeObj = p.types.find(t=>t.id===it.typeId);
       if (typeObj) api('adjustStock',{ productId:p.id, typeId:it.typeId,
-        delta:-1, isShip, reason:'order' }, 2, false);
+        stockLoc:typeObj.stockLoc||0, stockShip:typeObj.stockShip||0,
+        isShip, reason:'order' }, 2, false);
     } else {
       if (adjSent.has(p.id)) return;
       adjSent.add(p.id);
       api('adjustStock',{ productId:p.id,
-        delta:-1, isShip, reason:'order' }, 2, false);
+        stockLoc:p.stockLoc||0, stockShip:p.stockShip||0,
+        isShip, reason:'order' }, 2, false);
     }
   });
 
@@ -1620,13 +1622,15 @@ function confirmDeleteOrder(oid) {
           if (isShipDel) typeObj.stockShip = (typeObj.stockShip||0)+1;
           else           typeObj.stockLoc  = (typeObj.stockLoc ||0)+1;
           api('adjustStock',{ productId:p.id, typeId:it.typeId,
-            delta:1, isShip:isShipDel, reason:'delete' }, 2, false);
+            stockLoc:typeObj.stockLoc||0, stockShip:typeObj.stockShip||0,
+            isShip:isShipDel, reason:'delete' }, 2, false);
         }
       } else {
         if (isShipDel) p.stockShip = (p.stockShip||0)+1;
         else           p.stockLoc  = (p.stockLoc ||0)+1;
         api('adjustStock',{ productId:p.id,
-          delta:1, isShip:isShipDel, reason:'delete' }, 2, false);
+          stockLoc:p.stockLoc||0, stockShip:p.stockShip||0,
+          isShip:isShipDel, reason:'delete' }, 2, false);
       }
     });
     S.orders=S.orders.filter(x=>x.id!==oid);

@@ -655,82 +655,45 @@ function handleReorderProducts(data) {
 //  在庫調整
 // ============================================================
 function handleAdjustStock(data) {
-  var found = false;
   const ss   = SpreadsheetApp.openById(SPREADSHEET_ID);
   const sh   = ss.getSheetByName(SH.PRODUCTS);
   const rows = sh.getDataRange().getValues();
-  var logLoc = 0, logShip = 0;
-
   for (var i = 1; i < rows.length; i++) {
-    // String() で型の不一致を防ぐ
-    if (String(rows[i][0]) === String(data.productId)) {
-      found = true;
+    if (rows[i][0] === data.productId) {
       if (data.typeId) {
-        // タイプ別在庫更新
+        // タイプ別在庫更新（stockLoc/stockShip）
         var typesJson = rows[i][7] || '[]';
         var types = [];
         try { types = JSON.parse(typesJson); } catch(e){ types=[]; }
         types = types.map(function(t){
-          if (String(t.id) === String(data.typeId)) {
-            var curLoc  = Number(t.stockLoc  || 0);
-            var curShip = Number(t.stockShip || 0);
-            if (data.delta !== undefined) {
-              // デルタモード（注文登録/削除）: GASが現在値を読んで加減算
-              if (data.isShip) t.stockShip = Math.max(0, curShip + Number(data.delta));
-              else             t.stockLoc  = Math.max(0, curLoc  + Number(data.delta));
-            } else {
-              // 絶対値モード（手動在庫調整）
-              if (data.stockLoc  !== undefined) t.stockLoc  = data.stockLoc;
-              if (data.stockShip !== undefined) t.stockShip = data.stockShip;
-            }
-            logLoc  = Number(t.stockLoc  || 0);
-            logShip = Number(t.stockShip || 0);
+          if (t.id === data.typeId) {
+            if (data.stockLoc  !== undefined) t.stockLoc  = data.stockLoc;
+            if (data.stockShip !== undefined) t.stockShip = data.stockShip;
           }
           return t;
         });
         sh.getRange(i+1,8).setValue(JSON.stringify(types));
       } else {
-        // タイプなし在庫更新
-        var curLoc  = Number(rows[i][8] || 0);
-        var curShip = Number(rows[i][9] || 0);
-        if (data.delta !== undefined) {
-          // デルタモード: GASが現在値を読んで加減算
-          if (data.isShip) {
-            logShip = Math.max(0, curShip + Number(data.delta));
-            logLoc  = curLoc;
-            sh.getRange(i+1,10).setValue(logShip);
-          } else {
-            logLoc  = Math.max(0, curLoc + Number(data.delta));
-            logShip = curShip;
-            sh.getRange(i+1,9).setValue(logLoc);
-          }
-        } else {
-          // 絶対値モード（手動在庫調整）
-          if (data.stockLoc  !== undefined) { sh.getRange(i+1,9).setValue(data.stockLoc);   logLoc  = data.stockLoc;  }
-          if (data.stockShip !== undefined) { sh.getRange(i+1,10).setValue(data.stockShip); logShip = data.stockShip; }
-        }
+        // タイプなし：stockLoc/stockShipを個別列に保存
+        if (data.stockLoc  !== undefined) sh.getRange(i+1,9).setValue(data.stockLoc);
+        if (data.stockShip !== undefined) sh.getRange(i+1,10).setValue(data.stockShip);
       }
       break;
     }
   }
-
-  // ログ記録（見つからない場合も記録）
+  // ログ記録（stockLoc/stockShip を記録）
   const logSh = ss.getSheetByName(SH.STOCK_LOG);
   if (logSh) {
-    var modeNote = data.delta !== undefined ? 'delta:'+data.delta : 'abs';
     var logNote = (data.typeId ? 'type:'+data.typeId+' ' : '')
-      + modeNote + ' loc:' + logLoc + ' ship:' + logShip
-      + (data.isShip ? ' [郵送]' : ' [現地]')
-      + (found ? '' : ' ★NOT_FOUND★');
+      + 'loc:' + (data.stockLoc||0) + ' ship:' + (data.stockShip||0)
+      + (data.isShip ? ' [郵送]' : ' [現地]');
     logSh.appendRow([
-      Utilities.getUuid(), String(data.productId),
-      data.isShip ? logShip : logLoc,
+      Utilities.getUuid(), data.productId,
+      data.isShip ? (data.stockShip||0) : (data.stockLoc||0),
       (data.reason||'') + ' ' + logNote,
       new Date().toISOString()
     ]);
   }
-
-  if (!found) return err('商品が見つかりません: ' + data.productId);
   return ok({ adjusted: true });
 }
 
