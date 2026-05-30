@@ -1208,19 +1208,25 @@ function renderPPick() {
     // 配送方法に応じた在庫を表示
     const isShipMode = T.delivery === 'shipping';
     let stockTxt='';
+    let cardOos = false; // カード全体が在庫0か
     if (hasTypes) {
       const total=(p.types||[]).reduce((s,t)=>s+Number(isShipMode?t.stockShip:t.stockLoc||0),0);
       const label = isShipMode?'郵送在庫':'現地在庫';
+      cardOos = total===0;
       if(total>0) stockTxt=`<div class="pp-stock ${total<=p.stockWarn?'low':'ok'}">${label} ${total}個</div>`;
-      else stockTxt=`<div class="pp-stock" style="color:var(--dim)">${label} なし</div>`;
+      else stockTxt=`<div class="pp-stock" style="color:var(--red);font-weight:700">⚠ 在庫なし</div>`;
     } else {
       const stock = isShipMode ? Number(p.stockShip||0) : Number(p.stockLoc||0);
       const label = isShipMode?'郵送在庫':'現地在庫';
+      cardOos = stock===0;
       if(stock>0) stockTxt=`<div class="pp-stock ${stock<=p.stockWarn?'low':'ok'}">${label} ${stock}個</div>`;
+      else stockTxt=`<div class="pp-stock" style="color:var(--red);font-weight:700">⚠ 在庫なし</div>`;
     }
 
     const b=document.createElement('div');
     b.className=`pp${on?' on':''}`;
+    // 在庫0のカードは全体をグレーアウト・ポインター無効
+    if (cardOos) b.style.cssText='opacity:0.45;pointer-events:none';
 
     if (hasTypes) {
       // タイプあり：pp-typed クラスを付与（iOS transform 無効化・cursor:default）
@@ -1248,7 +1254,6 @@ function renderPPick() {
         </div>
         <div style="border-top:1px solid var(--border);padding-top:4px">${typesHtml}</div>`;
       // click のみ登録（.qbtn は touch-action:manipulation 済みなので iPad でも動作する）
-      // touchend + click の二重登録はカウントが2倍になるバグがあるため click のみにする
       b.querySelectorAll('[data-adj-pid]').forEach(btn=>{
         btn.addEventListener('click', e=>{
           e.stopPropagation();
@@ -1257,8 +1262,10 @@ function renderPPick() {
       });
     } else {
       // タイプなし：商品全体の個数
-      b.style.cursor='default';
+      b.style.cursor = cardOos ? 'not-allowed' : 'default';
+      const stock = isShipMode ? Number(p.stockShip||0) : Number(p.stockLoc||0);
       const qty = T.selProds[p.id]||0;
+      const atMax = qty >= stock; // 在庫上限に達している
       b.innerHTML=`
         <div style="display:flex;align-items:center;gap:6px">
           <div class="pp-name" style="flex:1">${p.name}</div>
@@ -1268,7 +1275,7 @@ function renderPPick() {
         <div style="display:flex;align-items:center;justify-content:flex-end;margin-top:6px;gap:6px">
           <button class="qbtn" style="width:28px;height:28px;font-size:14px" onclick="adjProdQty('${p.id}',-1)">－</button>
           <div class="qval" id="pq-${p.id}" style="width:34px;font-size:14px">${qty}</div>
-          <button class="qbtn" style="width:28px;height:28px;font-size:14px" onclick="adjProdQty('${p.id}',1)">＋</button>
+          <button class="qbtn" style="width:28px;height:28px;font-size:14px" ${(cardOos||atMax)?'disabled':''} onclick="adjProdQty('${p.id}',1)">＋</button>
         </div>`;
     }
     el.appendChild(b);
@@ -1278,20 +1285,34 @@ function renderPPick() {
 
 function adjTypeQty(pid, tid, d) {
   if (!T.selTypeQty[pid]) T.selTypeQty[pid]={};
+  // ＋方向のとき在庫上限チェック
+  if (d > 0) {
+    const p = S.products.find(x=>x.id===pid);
+    const isShip = T.delivery === 'shipping';
+    const typeObj = (p?.types||[]).find(t=>t.id===tid);
+    const stock = isShip ? Number(typeObj?.stockShip||0) : Number(typeObj?.stockLoc||0);
+    const current = T.selTypeQty[pid][tid]||0;
+    if (current >= stock) { toast('在庫がありません'); return; }
+  }
   T.selTypeQty[pid][tid] = Math.max(0, (T.selTypeQty[pid][tid]||0)+d);
   const el = document.getElementById(`tq-${pid}-${tid}`);
   if (el) el.textContent = T.selTypeQty[pid][tid];
-  // pp-cardのon状態更新
-  renderPPickOnState();
   renderQtyBlock();
 }
 
 function adjProdQty(pid, d) {
+  // ＋方向のとき在庫上限チェック
+  if (d > 0) {
+    const p = S.products.find(x=>x.id===pid);
+    const isShip = T.delivery === 'shipping';
+    const stock = isShip ? Number(p?.stockShip||0) : Number(p?.stockLoc||0);
+    const current = T.selProds[pid]||0;
+    if (current >= stock) { toast('在庫がありません'); return; }
+  }
   T.selProds[pid] = Math.max(0, (T.selProds[pid]||0)+d);
   if (T.selProds[pid]===0) delete T.selProds[pid];
   const el = document.getElementById(`pq-${pid}`);
   if (el) el.textContent = T.selProds[pid]||0;
-  renderPPickOnState();
   renderQtyBlock();
 }
 
@@ -1406,6 +1427,21 @@ async function saveOrder() {
     toast('更新しました'); closeOverlay('ov-order'); renderLocal(); renderShipping(); updateWait(); return;
   }
   if (!sel.length && !selWithTypes.length) { toast('商品を選択してください'); return; }
+
+  // 在庫0チェック（最終バリデーション）
+  const isShipFinal = T.delivery === 'shipping';
+  for (const [pid, qty] of sel) {
+    const p = S.products.find(x=>x.id===pid);
+    const stock = isShipFinal ? Number(p?.stockShip||0) : Number(p?.stockLoc||0);
+    if (stock <= 0) { toast(`「${p?.name||'商品'}」の在庫がありません`); return; }
+    if (qty > stock) { toast(`「${p?.name||'商品'}」の在庫が足りません（残${stock}個）`); return; }
+  }
+  for (const [pid,,tid] of selWithTypes) {
+    const p = S.products.find(x=>x.id===pid);
+    const typeObj = (p?.types||[]).find(t=>t.id===tid);
+    const stock = isShipFinal ? Number(typeObj?.stockShip||0) : Number(typeObj?.stockLoc||0);
+    if (stock <= 0) { toast(`「${p?.name||'商品'} [${typeObj?.name||''}]」の在庫がありません`); return; }
+  }
 
   const orderId=uid(), now=new Date().toISOString();
   const items=[];
