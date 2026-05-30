@@ -1581,24 +1581,18 @@ function _reorderProducts(fromPid, toPid) {
 }
 
 function _initCardDrag(card, pid) {
-  const handle = card.querySelector('.drag-handle');
-  if (!handle) return;
-
-  // --- Desktop: ハンドルだけ draggable にする（カード全体には設定しない→iOS tapを守る）---
-  handle.draggable = true;
-  handle.addEventListener('dragstart', e=>{
+  // --- Desktop drag & drop ---
+  card.draggable = true;
+  card.addEventListener('dragstart', e=>{
     _dragSrcPid = pid;
     e.dataTransfer.effectAllowed = 'move';
-    // ゴーストはカード全体の見た目を使う
-    try { e.dataTransfer.setDragImage(card, card.offsetWidth/2, 20); } catch(_){}
     setTimeout(()=>card.classList.add('dragging'),0);
   });
-  handle.addEventListener('dragend', ()=>{
+  card.addEventListener('dragend', ()=>{
     card.classList.remove('dragging');
     document.querySelectorAll('#pgrid .pcard').forEach(c=>c.classList.remove('drag-over'));
     _dragSrcPid = null; _dragTgtPid = null;
   });
-  // drop ターゲットはカード全体
   card.addEventListener('dragover', e=>{
     if (!_dragSrcPid || _dragSrcPid===pid) return;
     e.preventDefault();
@@ -1606,11 +1600,7 @@ function _initCardDrag(card, pid) {
     card.classList.add('drag-over');
     _dragTgtPid = pid;
   });
-  card.addEventListener('dragleave', e=>{
-    // 子要素への移動は無視
-    if (card.contains(e.relatedTarget)) return;
-    card.classList.remove('drag-over');
-  });
+  card.addEventListener('dragleave', ()=>{ card.classList.remove('drag-over'); });
   card.addEventListener('drop', e=>{
     e.preventDefault();
     document.querySelectorAll('#pgrid .pcard').forEach(c=>c.classList.remove('drag-over'));
@@ -1618,7 +1608,9 @@ function _initCardDrag(card, pid) {
     _dragSrcPid = null; _dragTgtPid = null;
   });
 
-  // --- Touch drag（ハンドルのみ）---
+  // --- Touch drag ---
+  const handle = card.querySelector('.drag-handle');
+  if (!handle) return;
   handle.addEventListener('touchstart', e=>{
     _dragSrcPid = pid;
     card.classList.add('dragging');
