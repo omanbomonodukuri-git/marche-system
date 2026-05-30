@@ -209,13 +209,11 @@ function handleGetAll() {
   });
 
   var result = { orders: active, products: products };
-  // 結果をキャッシュに保存（50秒間）
-  // フロント同期が30秒ごとなので、50秒TTLで「30秒→キャッシュヒット→60秒→再読み込み」のサイクルになる
-  // 書き込み系操作時は invalidateCache() でキャッシュを即座に消去するため、ステップ更新等は遅延なく反映
+  // 結果をキャッシュに保存（25秒間）
   try {
     var json = JSON.stringify(result);
     if (json.length < 95000) { // 100KB制限の安全マージン
-      CacheService.getScriptCache().put('getAll_v1', json, 50);
+      CacheService.getScriptCache().put('getAll_v1', json, 25);
     }
   } catch(e){}
   return ok(result);
