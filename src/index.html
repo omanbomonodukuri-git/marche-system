@@ -2323,17 +2323,40 @@ async function renderAnalytics() {
     const pct=periodTotal?Math.round((payMap2[k]||0)/periodTotal*100):0;
     return `<div class="pay-row"><span style="font-size:12px;color:var(--dim)">${l}</span><span style="font-size:13px;font-weight:700">¥${(payMap2[k]||0).toLocaleString()}<span style="font-size:10px;color:var(--dim);margin-left:5px">${pct}%</span></span></div>`;
   }).join('');
+  // 商品×種類別集計（productName の "[タイプ名]" を分離してグループ化）
   const pMap={};
-  filtered.forEach(h=>(h.salesItems||[]).forEach(si=>{if(!pMap[si.productName])pMap[si.productName]={cnt:0,total:0};pMap[si.productName].cnt++;pMap[si.productName].total+=Number(si.price||0);}));
+  filtered.forEach(h=>(h.salesItems||[]).forEach(si=>{
+    const raw=si.productName||'-';
+    const lastB=raw.lastIndexOf(' [');
+    const base=(lastB>=0&&raw.endsWith(']'))?raw.slice(0,lastB):raw;
+    const type=(lastB>=0&&raw.endsWith(']'))?raw.slice(lastB+2,-1):'';
+    if(!pMap[base])pMap[base]={cnt:0,total:0,types:{}};
+    pMap[base].cnt++;pMap[base].total+=Number(si.price||0);
+    if(type){if(!pMap[base].types[type])pMap[base].types[type]={cnt:0,total:0};pMap[base].types[type].cnt++;pMap[base].types[type].total+=Number(si.price||0);}
+  }));
   const sorted=Object.entries(pMap).sort((a,b)=>b[1].total-a[1].total);
   const maxT=sorted[0]?.[1]?.total||1;
-  document.getElementById('rank-list').innerHTML=sorted.length?sorted.map(([name,{cnt,total}],i)=>`
-    <div class="rank-row">
-      <div class="rank-pos">${i+1}</div>
-      <div style="flex:1"><div style="font-size:13px;font-weight:700">${name}</div><div class="bar-wrap" style="margin-top:3px"><div class="bar-fill" style="width:${Math.round(total/maxT*100)}%"></div></div></div>
-      <div style="font-size:12px;color:var(--dim)">${cnt}個</div>
-      <div style="font-size:13px;font-weight:700;color:var(--gold)">¥${total.toLocaleString()}</div>
-    </div>`).join(''):`<div style="font-size:12px;color:var(--dim);padding:10px">データなし</div>`;
+  document.getElementById('rank-list').innerHTML=sorted.length?sorted.map(([name,{cnt,total,types}],i)=>{
+    const typeEntries=Object.entries(types).sort((a,b)=>b[1].total-a[1].total);
+    const typeRows=typeEntries.map(([tn,{cnt:tc,total:tt}])=>
+      `<div style="display:flex;align-items:center;gap:6px;padding:2px 0 2px 28px;font-size:11px;border-top:1px solid var(--border)">
+        <span style="color:var(--blue);font-weight:600">[${tn}]</span>
+        <span style="color:var(--dim);margin-left:auto">${tc}個</span>
+        <span style="color:var(--gold);font-weight:700;min-width:60px;text-align:right">¥${tt.toLocaleString()}</span>
+      </div>`).join('');
+    return `<div class="rank-row" style="flex-direction:column;align-items:stretch;gap:0;padding:0">
+      <div style="display:flex;align-items:center;gap:7px;padding:7px 10px">
+        <div class="rank-pos">${i+1}</div>
+        <div style="flex:1">
+          <div style="font-size:13px;font-weight:700">${name}</div>
+          <div class="bar-wrap" style="margin-top:3px"><div class="bar-fill" style="width:${Math.round(total/maxT*100)}%"></div></div>
+        </div>
+        <div style="font-size:12px;color:var(--dim)">${cnt}個</div>
+        <div style="font-size:13px;font-weight:700;color:var(--gold)">¥${total.toLocaleString()}</div>
+      </div>
+      ${typeRows}
+    </div>`;
+  }).join(''):`<div style="font-size:12px;color:var(--dim);padding:10px">データなし</div>`;
   // 行程別実績時間（キャッシュから取得）
   const stepAvg    = window._stepAvgCache || {};
   const prodAvg    = window._prodAvgCache || {};
