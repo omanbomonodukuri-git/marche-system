@@ -971,7 +971,9 @@ function renderCard(o, container, deliveryType) {
     if (!p) return;
     const allDone = it.steps.every(s => s.done);
     const curStep = it.steps.findIndex(s => !s.done);
-    const sameItems = (o.items||[]).filter(x => x.pid===it.pid);
+    // タイプが同じ場合のみ同一アイテムとしてカウント（タイプが異なれば別物）
+    const sameKey = it.typeId ? `${it.pid}__${it.typeId}` : it.pid;
+    const sameItems = (o.items||[]).filter(x => (x.typeId ? `${x.pid}__${x.typeId}` : x.pid) === sameKey);
     const pos = sameItems.indexOf(it)+1;
     const countLabel = sameItems.length>1 ? ` (${pos}/${sameItems.length})` : '';
     const payLabel = it.paymentMethod ? PAY_LABELS[it.paymentMethod]||'' : '';
@@ -1245,16 +1247,13 @@ function renderPPick() {
           ${stockTxt}
         </div>
         <div style="border-top:1px solid var(--border);padding-top:4px">${typesHtml}</div>`;
-      // onclick属性ではなく addEventListener で登録（iOS Safari 対応）
+      // click のみ登録（.qbtn は touch-action:manipulation 済みなので iPad でも動作する）
+      // touchend + click の二重登録はカウントが2倍になるバグがあるため click のみにする
       b.querySelectorAll('[data-adj-pid]').forEach(btn=>{
         btn.addEventListener('click', e=>{
           e.stopPropagation();
           adjTypeQty(btn.dataset.adjPid, btn.dataset.adjTid, Number(btn.dataset.adjD));
         });
-        btn.addEventListener('touchend', e=>{
-          e.preventDefault(); e.stopPropagation();
-          adjTypeQty(btn.dataset.adjPid, btn.dataset.adjTid, Number(btn.dataset.adjD));
-        }, {passive:false});
       });
     } else {
       // タイプなし：商品全体の個数
