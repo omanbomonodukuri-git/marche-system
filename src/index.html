@@ -2045,7 +2045,12 @@ async function renderHistory() {
   list.innerHTML='';
   [...historyData].sort((a,b)=>new Date(b.completedAt)-new Date(a.completedAt)).forEach(h=>{
     const iMap={};
-    (h.salesItems||[]).forEach(si=>{iMap[si.productName]=(iMap[si.productName]||0)+1;});
+    (h.salesItems||[]).forEach(si=>{
+      // typeName があり productName に含まれていない場合は付加して表示キーを生成
+      const base = si.productName||'-';
+      const key = (si.typeName && !base.includes('['+si.typeName+']')) ? `${base} [${si.typeName}]` : base;
+      iMap[key]=(iMap[key]||0)+1;
+    });
     // "[タイプ名]" 部分をカラー表示
     const itemStr=Object.entries(iMap).map(([n,c])=>{
       const label=(c>1?`${n}×${c}`:n).replace(/\[(.+?)\]/g,'<span style="color:var(--blue);font-weight:700">[$1]</span>');
@@ -2053,6 +2058,10 @@ async function renderHistory() {
     }).join('、');
     const htotal=(h.salesItems||[]).reduce((s,si)=>s+Number(si.price||0),0);
     const isShip=h.deliveryType==='shipping';
+    // 支払い方法サマリ（複数の場合は「/」区切り）
+    const paySet=[...new Set((h.salesItems||[]).map(si=>si.paymentMethod||'cash'))];
+    const PAY_ICON={cash:'💴',airpay:'💳',paypay:'📱'};
+    const payLabel=paySet.map(p=>`${PAY_ICON[p]||''}${PAY_LABELS[p]||p}`).join(' / ');
     const card=document.createElement('div'); card.className='hcard'; card.style.flexDirection='column';
     card.innerHTML=`<div style="display:flex;align-items:flex-start;gap:9px;width:100%">
       <div class="hcard-check ${isShip?'hc-ship':'hc-loc'}">${isShip?'📦':'✓'}</div>
@@ -2063,6 +2072,7 @@ async function renderHistory() {
       </div>
       <div class="hcard-meta">
         <div class="hcard-time">${fmt(h.completedAt)}</div>
+        <div style="font-size:10px;color:var(--dim);margin-top:1px">${payLabel}</div>
         <div class="hcard-total">¥${htotal.toLocaleString()}</div>
       </div>
       <button class="hcard-del" onclick="confirmDeleteHistory('${h.id}','${h.orderId}')">🗑</button>
@@ -2088,11 +2098,14 @@ function toggleHistDetail(hid) {
   const h = historyData.find(x=>x.id===hid);
   if (!h) return;
   const itemRows = (h.salesItems||[]).map(si=>{
-    const nameHtml=(si.productName||'-').replace(/\[(.+?)\]/g,'<span style="color:var(--blue);font-weight:700"> [$1]</span>');
+    const base = si.productName||'-';
+    const fullName = (si.typeName && !base.includes('['+si.typeName+']')) ? `${base} [${si.typeName}]` : base;
+    const nameHtml=fullName.replace(/\[(.+?)\]/g,'<span style="color:var(--blue);font-weight:700"> [$1]</span>');
+    const payIcon={cash:'💴',airpay:'💳',paypay:'📱'}[si.paymentMethod||'cash']||'💴';
     return `
     <div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border)">
       <div style="flex:1;font-size:12px;font-weight:600">${nameHtml}</div>
-      <div style="font-size:11px;color:var(--dim)">${PAY_LABELS[si.paymentMethod]||'現金'}</div>
+      <div style="font-size:11px;color:var(--dim)">${payIcon}${PAY_LABELS[si.paymentMethod]||'現金'}</div>
       <div style="font-size:12px;font-weight:700;color:var(--gold)">¥${Number(si.price||0).toLocaleString()}</div>
     </div>`;
   }).join('');
