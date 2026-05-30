@@ -458,6 +458,11 @@ body{background:var(--bg);color:var(--text);font-family:'Noto Sans JP',sans-seri
     <button class="btn-add" id="btn-add-product">＋ 追加</button>
   </div>
   <div class="pgrid" id="pgrid"></div>
+  <div style="margin-top:14px;padding:10px 12px;background:var(--s2);border:1px solid var(--border);border-radius:8px;font-size:12px;color:var(--dim)">
+    <div style="font-weight:700;color:var(--text);margin-bottom:6px">🔧 データ修復</div>
+    <div style="margin-bottom:8px">過去の売上・履歴データに種類名（タイプ）が反映されていない場合は下のボタンで修正できます。</div>
+    <button id="btn-fix-type-names" style="background:var(--blue);color:#fff;border:none;border-radius:6px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer">過去データの種類名を反映する</button>
+  </div>
 </div>
 
 </div><!-- /app -->
@@ -511,6 +516,23 @@ body{background:var(--bg);color:var(--text);font-family:'Noto Sans JP',sans-seri
     <div class="pay-btn" data-pay="cash">💴 現金</div>
     <div class="pay-btn" data-pay="airpay">💳 Airpay</div>
     <div class="pay-btn" data-pay="paypay">📱 PayPay</div>
+  </div>
+  <div class="sh-lbl">追加料金オプション</div>
+  <div style="background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:11px">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:9px">
+      <div style="font-size:12px;color:var(--dim);width:64px;flex-shrink:0">料金（円）</div>
+      <span style="font-size:13px;color:var(--dim)">¥</span>
+      <input class="sh-input" id="inp-item-optionfee" type="number" inputmode="numeric" style="width:90px;margin-bottom:0;font-size:15px;font-weight:700;color:var(--gold)">
+    </div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <div style="font-size:12px;color:var(--dim);width:64px;flex-shrink:0">適用個数</div>
+      <div class="qty-ctrl">
+        <button class="qbtn" id="item-optcount-minus">－</button>
+        <div class="qval" id="item-optcount-val">0</div>
+        <button class="qbtn" id="item-optcount-plus">＋</button>
+      </div>
+      <div id="item-optcount-of" style="font-size:11px;color:var(--dim)">/ 1個</div>
+    </div>
   </div>
   <div class="sh-lbl">スキップ設定</div>
   <div class="skip-row">
@@ -679,7 +701,8 @@ let T = {
   types: [],         // [{id, name, stock}]
   selType: {},       // 旧：{pid: typeId}（後方互換）
   selTypeQty: {},    // 新：{pid: {typeId: qty}}
-  options: {},       // {pid: {fee: 0, note: ''}} オプション料金
+  options: {},       // {pid__tid: {fee: 0, note: '', count: N}} オプション料金
+  editItemOptFee: 0, editItemOptCount: 0, editItemOptTotal: 1,
 };
 let orderPayment = 'cash';
 
@@ -784,6 +807,19 @@ async function tryAutoLogin() {
 async function showApp() {
   document.getElementById('login-screen').style.display='none';
   document.getElementById('app').style.display='block';
+  // キャッシュからすぐに画面を表示（2秒以内のUI表示）
+  try {
+    const raw = localStorage.getItem('mb_data_cache');
+    if (raw) {
+      const c = JSON.parse(raw);
+      if (Date.now() - c.ts < 300000) { // 5分以内のキャッシュ
+        S.orders   = c.orders   || [];
+        S.products = (c.products&&c.products.length) ? c.products : DEFAULT_PRODUCTS;
+        normalizeLoadedData();
+        render();
+      }
+    }
+  } catch(e){}
   await loadAll();
   startClock();
   buildLegend();
@@ -792,11 +828,7 @@ async function showApp() {
 // ============================================================
 //  LOAD
 // ============================================================
-async function loadAll(showSpinner=false) {
-  const res = await api('getAll', {}, 1, showSpinner);
-  if (!res) return;
-  S.orders   = res.orders || [];
-  S.products = (res.products && res.products.length) ? res.products : DEFAULT_PRODUCTS;
+function normalizeLoadedData() {
   S.orders.forEach(o => {
     (o.items||[]).forEach(it => {
       it.skipBinarize  = it.skipBinarize==1  || it.skipBinarize===true;
@@ -806,7 +838,6 @@ async function loadAll(showSpinner=false) {
       it.doubleBinarize= it.doubleBinarize==1|| it.doubleBinarize===true;
       it.optionFee     = Number(it.optionFee||0);
       it.optionNote    = it.optionNote||'';
-      // typeId / typeName を文字列として保証
       it.typeId   = it.typeId   ? String(it.typeId)   : '';
       it.typeName = it.typeName ? String(it.typeName) : '';
       (it.steps||[]).forEach(s => { s.done = s.done==1 || s.done===true; });
@@ -820,18 +851,30 @@ async function loadAll(showSpinner=false) {
     p.stock        = Number(p.stock || 0);
     p.stockWarn    = Number(p.stockWarn || 3);
     p.totalMinutes = p.totalMinutes || Object.values(p.stepTimes).reduce((a,b)=>a+Number(b),0) || 15;
-    // types が未設定の場合は typesJson をパース（旧GAS互換）
     if (!Array.isArray(p.types)) {
       if (typeof p.typesJson === 'string' && p.typesJson) {
         try { p.types = JSON.parse(p.typesJson); } catch{ p.types=[]; }
       } else { p.types = []; }
     }
-    // types 内の stockLoc/stockShip を数値保証
     (p.types||[]).forEach(t => {
       t.stockLoc  = Number(t.stockLoc  || 0);
       t.stockShip = Number(t.stockShip || 0);
     });
   });
+}
+
+async function loadAll(showSpinner=false) {
+  const res = await api('getAll', {}, 1, showSpinner);
+  if (!res) return;
+  S.orders   = res.orders || [];
+  S.products = (res.products && res.products.length) ? res.products : DEFAULT_PRODUCTS;
+  normalizeLoadedData();
+  // データをlocalStorageにキャッシュ（次回起動を高速化）
+  try {
+    localStorage.setItem('mb_data_cache', JSON.stringify({
+      orders: res.orders||[], products: res.products||[], ts: Date.now()
+    }));
+  } catch(e){}
   render();
 }
 
@@ -1375,7 +1418,10 @@ function renderQtyBlock() {
 
   optEl.innerHTML = optRows.map((row, idx) => {
     const opt = getOption(row.pid, row.tid);
+    const qty = row.tid ? ((T.selTypeQty[row.pid]||{})[row.tid]||1) : (T.selProds[row.pid]||1);
+    const optCount = opt.count !== undefined ? opt.count : qty;
     const isLast = idx === optRows.length - 1;
+    const key = row.pid+'__'+(row.tid||'');
     return `
       <div style="${isLast?'':'border-bottom:1px solid var(--border);padding-bottom:10px;margin-bottom:10px'}">
         <div style="font-size:13px;font-weight:700;margin-bottom:8px;color:var(--gold)">${row.label}</div>
@@ -1389,6 +1435,15 @@ function renderQtyBlock() {
           </div>
           ${opt.fee>0?'<span style="font-size:11px;color:var(--orange);font-weight:700">2値化×2</span>':'<span style="font-size:10px;color:var(--dim)">料金入力で2値化2倍</span>'}
         </div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px">
+          <div style="font-size:12px;color:var(--dim);flex-shrink:0;width:60px">適用個数</div>
+          <div class="qty-ctrl">
+            <button class="qbtn" onclick="updateOptionCount('${row.pid}','${row.tid}',-1)">－</button>
+            <div class="qval" id="optcnt-${key}">${optCount}</div>
+            <button class="qbtn" onclick="updateOptionCount('${row.pid}','${row.tid}',+1)">＋</button>
+          </div>
+          <span style="font-size:11px;color:var(--dim)">/ ${qty}個（0=全体で1回分）</span>
+        </div>
         <input type="text" inputmode="text" value="${opt.note||''}"
           placeholder="オプション内容（例：名入れ・背景除去）"
           style="width:100%;background:var(--s1);border:1.5px solid var(--border);border-radius:6px;padding:8px 10px;font-size:13px;color:var(--text)"
@@ -1399,13 +1454,27 @@ function renderQtyBlock() {
 
 function updateOptionFee(pid, tid, val) {
   const key = pid + '__' + (tid||'');
-  if (!T.options[key]) T.options[key] = { fee:0, note:'' };
+  if (!T.options[key]) {
+    const qty = tid ? ((T.selTypeQty[pid]||{})[tid]||1) : (T.selProds[pid]||1);
+    T.options[key] = { fee:0, note:'', count: qty };
+  }
   T.options[key].fee = parseInt(val)||0;
 }
 function updateOptionNote(pid, tid, val) {
   const key = pid + '__' + (tid||'');
-  if (!T.options[key]) T.options[key] = { fee:0, note:'' };
+  if (!T.options[key]) {
+    const qty = tid ? ((T.selTypeQty[pid]||{})[tid]||1) : (T.selProds[pid]||1);
+    T.options[key] = { fee:0, note:'', count: qty };
+  }
   T.options[key].note = val;
+}
+function updateOptionCount(pid, tid, delta) {
+  const key = pid + '__' + (tid||'');
+  const qty = tid ? ((T.selTypeQty[pid]||{})[tid]||1) : (T.selProds[pid]||1);
+  if (!T.options[key]) T.options[key] = { fee:0, note:'', count: qty };
+  T.options[key].count = Math.max(0, Math.min(qty, (T.options[key].count??qty) + delta));
+  const el = document.getElementById('optcnt-'+key);
+  if (el) el.textContent = T.options[key].count;
 }
 function getOption(pid, tid) {
   const key = pid + '__' + (tid||'');
@@ -1465,6 +1534,10 @@ async function saveOrder() {
   const stepDefs=getStepDefs(T.delivery);
   // タイプなし商品
   sel.forEach(([pid,qty])=>{
+    const opt=getOption(pid,'');
+    // 適用個数: 未設定なら全個数、0なら全体で1回分（i=0のみ）
+    const raw = T.options[pid+'__']?.count;
+    const optCount = raw !== undefined ? raw : qty;
     for(let i=0;i<qty;i++){
       const iid=uid();
       const steps=stepDefs.map((_,si)=>({
@@ -1472,19 +1545,23 @@ async function saveOrder() {
         done:si===0,startedAt:si===0?now:'',completedAt:si===0?now:'',durationMins:0
       }));
       const p=S.products.find(x=>x.id===pid);
-      const opt=getOption(pid,'');
-      const hasOption=opt.fee>0||!!opt.note;
-      const basePrice=(p?.price||0)+Number(opt.fee||0);
+      // count=0の場合は1個目のみオプション料金を載せる（1オーダーあたりの追加料金）
+      const applyOpt = optCount===0 ? i===0 : i<optCount;
+      const hasOption= applyOpt && (opt.fee>0||!!opt.note);
+      const basePrice=(p?.price||0)+(hasOption?Number(opt.fee||0):0);
       items.push({id:iid,pid,idx:i,totalOf:qty,skipBinarize:false,skipDesign:false,
         price:basePrice,paymentMethod:orderPayment,paid:false,onHold:false,
         typeId:'',typeName:'',
-        optionFee:opt.fee||0,optionNote:opt.note||'',
+        optionFee:hasOption?opt.fee||0:0,optionNote:hasOption?opt.note||'':'',
         doubleBinarize:hasOption,
         steps,stepDefs:steps});
     }
   });
   // タイプあり商品
   selWithTypes.forEach(([pid,qty,tid])=>{
+    const opt2=getOption(pid,tid);
+    const raw2 = T.options[pid+'__'+(tid||'')]?.count;
+    const optCount2 = raw2 !== undefined ? raw2 : qty;
     for(let i=0;i<qty;i++){
       const iid=uid();
       const steps=stepDefs.map((_,si)=>({
@@ -1493,13 +1570,13 @@ async function saveOrder() {
       }));
       const p=S.products.find(x=>x.id===pid);
       const typeObj=(p?.types||[]).find(t=>t.id===tid);
-      const opt2=getOption(pid,tid);
-      const hasOption2=opt2.fee>0||!!opt2.note;
-      const basePrice2=(p?.price||0)+Number(opt2.fee||0);
+      const applyOpt2 = optCount2===0 ? i===0 : i<optCount2;
+      const hasOption2= applyOpt2 && (opt2.fee>0||!!opt2.note);
+      const basePrice2=(p?.price||0)+(hasOption2?Number(opt2.fee||0):0);
       items.push({id:iid,pid,idx:i,totalOf:qty,skipBinarize:false,skipDesign:false,
         price:basePrice2,paymentMethod:orderPayment,paid:false,onHold:false,
         typeId:tid,typeName:typeObj?.name||'',
-        optionFee:opt2.fee||0,optionNote:opt2.note||'',
+        optionFee:hasOption2?opt2.fee||0:0,optionNote:hasOption2?opt2.note||'':'',
         doubleBinarize:hasOption2,
         steps,stepDefs:steps});
     }
@@ -1573,13 +1650,23 @@ async function saveOrder() {
 function openEditItem(oid) {
   const o=S.orders.find(x=>x.id===oid);
   if(!o||(o.items||[]).length===0) return;
-  const it=o.items[0];
+  const sortedItems = (o.items||[]).slice().sort((a,b)=>(a.idx||0)-(b.idx||0));
+  const it=sortedItems[0];
   T.editItemId=it.id; T.editOrderIdForItem=oid;
   T.skipBinarize=it.skipBinarize||false; T.skipDesign=it.skipDesign||false;
   T.itemPayment=it.paymentMethod||'cash'; T.itemPrice=it.price;
+  // オプション料金の状態
+  const withOpt = sortedItems.filter(x=>x.optionFee>0);
+  T.editItemOptFee   = withOpt.length>0 ? (withOpt[0].optionFee||0) : 0;
+  T.editItemOptCount = withOpt.length;
+  T.editItemOptTotal = sortedItems.length;
   const p=S.products.find(x=>x.id===it.pid);
-  document.getElementById('item-modal-title').textContent=`${p?.name||''} を編集`;
+  const typeLabel = it.typeName ? ` [${it.typeName}]` : '';
+  document.getElementById('item-modal-title').textContent=`${p?.name||''}${typeLabel} を編集`;
   document.getElementById('inp-item-price').value=it.price||p?.price||0;
+  document.getElementById('inp-item-optionfee').value=T.editItemOptFee;
+  document.getElementById('item-optcount-val').textContent=T.editItemOptCount;
+  document.getElementById('item-optcount-of').textContent=`/ ${T.editItemOptTotal}個`;
   document.getElementById('tog-binarize').className=`tog${T.skipBinarize?' on':''}`;
   document.getElementById('tog-design').className=`tog${T.skipDesign?' on':''}`;
   document.querySelectorAll('#item-pay-pick .pay-btn').forEach(b=>b.classList.toggle('on',b.dataset.pay===T.itemPayment));
@@ -1591,14 +1678,37 @@ document.querySelectorAll('#item-pay-pick .pay-btn').forEach(b=>{
   b.addEventListener('click',()=>{T.itemPayment=b.dataset.pay;document.querySelectorAll('#item-pay-pick .pay-btn').forEach(x=>x.classList.toggle('on',x===b));});
 });
 document.getElementById('item-cancel').addEventListener('click',()=>closeOverlay('ov-item'));
+document.getElementById('item-optcount-minus').addEventListener('click',()=>{
+  T.editItemOptCount=Math.max(0,T.editItemOptCount-1);
+  document.getElementById('item-optcount-val').textContent=T.editItemOptCount;
+});
+document.getElementById('item-optcount-plus').addEventListener('click',()=>{
+  T.editItemOptCount=Math.min(T.editItemOptTotal,T.editItemOptCount+1);
+  document.getElementById('item-optcount-val').textContent=T.editItemOptCount;
+});
 document.getElementById('item-ok').addEventListener('click',async()=>{
   const price=parseInt(document.getElementById('inp-item-price').value)||0;
+  const optFee=parseInt(document.getElementById('inp-item-optionfee').value)||0;
+  const optCount=T.editItemOptCount;
   const o=S.orders.find(x=>x.id===T.editOrderIdForItem);
-  if(o){(o.items||[]).forEach(it=>{it.skipBinarize=T.skipBinarize;it.skipDesign=T.skipDesign;it.paymentMethod=T.itemPayment;it.price=price;});}
-  // メインアイテムは全フィールド更新、残りのアイテムも支払い方法を更新
-  await api('updateItem',{itemId:T.editItemId,price,skipBinarize:T.skipBinarize,skipDesign:T.skipDesign,paymentMethod:T.itemPayment});
-  (o?.items||[]).filter(it=>it.id!==T.editItemId).forEach(it=>{
-    apiAsync('updateItem',{itemId:it.id,paymentMethod:T.itemPayment});
+  if(o){
+    const sorted=(o.items||[]).slice().sort((a,b)=>(a.idx||0)-(b.idx||0));
+    sorted.forEach((it,i)=>{
+      it.skipBinarize=T.skipBinarize; it.skipDesign=T.skipDesign;
+      it.paymentMethod=T.itemPayment; it.price=price;
+      it.optionFee = i<optCount ? optFee : 0;
+      it.doubleBinarize = i<optCount && optFee>0;
+    });
+  }
+  // 全アイテムをGASへ保存（idx順に並べてoptionFeeを割り当て）
+  const o2=S.orders.find(x=>x.id===T.editOrderIdForItem);
+  const sorted2=(o2?.items||[]).slice().sort((a,b)=>(a.idx||0)-(b.idx||0));
+  const mainIdx=sorted2.findIndex(x=>x.id===T.editItemId);
+  const mainHasOpt=mainIdx<optCount;
+  await api('updateItem',{itemId:T.editItemId,price,skipBinarize:T.skipBinarize,skipDesign:T.skipDesign,paymentMethod:T.itemPayment,optionFee:mainHasOpt?optFee:0,doubleBinarize:mainHasOpt&&optFee>0});
+  sorted2.filter(it=>it.id!==T.editItemId).forEach(it=>{
+    const i=sorted2.findIndex(x=>x.id===it.id);
+    apiAsync('updateItem',{itemId:it.id,paymentMethod:T.itemPayment,optionFee:it.optionFee,doubleBinarize:it.doubleBinarize});
   });
   closeOverlay('ov-item'); renderLocal(); renderShipping(); updateWait(); toast('更新しました');
 });
@@ -2031,6 +2141,14 @@ function confirmDeleteProduct(pid) {
     await api('deleteProduct',{productId:pid}); toast('削除しました');
   });
 }
+
+document.getElementById('btn-fix-type-names').addEventListener('click', async () => {
+  const btn = document.getElementById('btn-fix-type-names');
+  btn.disabled = true; btn.textContent = '処理中...';
+  const res = await api('fixSalesTypeNames', {}, 1, true);
+  btn.disabled = false; btn.textContent = '過去データの種類名を反映する';
+  if (res) toast(`✅ ${res.result||'完了'}`);
+});
 
 // ============================================================
 //  HISTORY

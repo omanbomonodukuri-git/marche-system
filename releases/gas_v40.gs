@@ -85,10 +85,9 @@ function doGet(e) {
       case 'saveProduct':     return handleSaveProduct(data.product||data);
       case 'deleteProduct':   return handleDeleteProduct(data.productId||'');
       case 'reorderProducts': return handleReorderProducts(data);
-      case 'adjustStock':       return handleAdjustStock(data);
-      case 'updateHistory':     return handleUpdateHistory(data);
-      case 'exportCSV':         return handleExportCSV();
-      case 'fixSalesTypeNames': return ok({ result: fixSalesTypeNames() });
+      case 'adjustStock':     return handleAdjustStock(data);
+      case 'updateHistory':   return handleUpdateHistory(data);
+      case 'exportCSV':       return handleExportCSV();
       default:               return err('Unknown action: ' + action);
     }
   } catch(ex) {
@@ -144,22 +143,10 @@ function setConfig(key, value) {
   sh.appendRow([key, value]);
 }
 
-// キャッシュを無効化（書き込み系操作後に呼ぶ）
-function invalidateCache() {
-  try { CacheService.getScriptCache().remove('getAll_v1'); } catch(e){}
-}
-
 // ============================================================
-//  全データ取得（CacheServiceで高速化）
+//  全データ取得
 // ============================================================
 function handleGetAll() {
-  // キャッシュから返せる場合は即返す（25秒TTL）
-  try {
-    const cache = CacheService.getScriptCache();
-    const hit = cache.get('getAll_v1');
-    if (hit) return ok(JSON.parse(hit));
-  } catch(e){}
-
   const ss       = SpreadsheetApp.openById(SPREADSHEET_ID);
   const orders   = sheetToObjects(ss.getSheetByName(SH.ORDERS));
   const items    = sheetToObjects(ss.getSheetByName(SH.ITEMS));
@@ -208,15 +195,7 @@ function handleGetAll() {
     it.typeName = it.typeName || '';
   });
 
-  var result = { orders: active, products: products };
-  // 結果をキャッシュに保存（25秒間）
-  try {
-    var json = JSON.stringify(result);
-    if (json.length < 95000) { // 100KB制限の安全マージン
-      CacheService.getScriptCache().put('getAll_v1', json, 25);
-    }
-  } catch(e){}
-  return ok(result);
+  return ok({ orders: active, products: products });
 }
 
 function handleGetHistory(year, month) {
@@ -364,7 +343,6 @@ function handleGetHistory(year, month) {
 
 function handleSaveOrderFast(data) {
   if (!data || !data.id) return err('data missing');
-  invalidateCache(); // 書き込み前にキャッシュ無効化
   const ss  = SpreadsheetApp.openById(SPREADSHEET_ID);
   const oSh = ss.getSheetByName(SH.ORDERS);
   const iSh = ss.getSheetByName(SH.ITEMS);
@@ -433,7 +411,6 @@ function handleSaveOrderStep(data) {
 //  ステップ更新
 // ============================================================
 function handleUpdateStep(data) {
-  invalidateCache();
   const sh   = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(SH.STEPS);
   const rows = sh.getDataRange().getValues();
   var targetRow = -1;
@@ -543,7 +520,6 @@ function handleUpdateOrder(data) {
 //  注文完了
 // ============================================================
 function handleCompleteOrder(data) {
-  invalidateCache();
   const ss    = SpreadsheetApp.openById(SPREADSHEET_ID);
   const oSh   = ss.getSheetByName(SH.ORDERS);
   const oRows = oSh.getDataRange().getValues();
@@ -584,7 +560,6 @@ function handleCompleteOrder(data) {
 // ============================================================
 function handleDeleteOrder(orderId) {
   if (!orderId) return err('orderId missing');
-  invalidateCache();
   const ss    = SpreadsheetApp.openById(SPREADSHEET_ID);
   const iSh   = ss.getSheetByName(SH.ITEMS);
   const iRows = iSh.getDataRange().getValues();
