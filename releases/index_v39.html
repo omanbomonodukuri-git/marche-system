@@ -696,7 +696,7 @@ async function api(action, data={}, retry=1, forceShow=null) {
       r = await fetch(`${GAS_URL}?action=auth&password=${encodeURIComponent(data.password||'')}`);
     } else {
       const dataStr = JSON.stringify(data);
-      const MAX = 4000; // GAS URLの安全な上限（4000文字以下ならチャンク不要）
+      const MAX = 1500; // より保守的なサイズ制限
       if (dataStr.length <= MAX) {
         r = await fetch(`${GAS_URL}?action=${encodeURIComponent(action)}&token=${encodeURIComponent(token)}&d=${encodeURIComponent(dataStr)}`);
       } else {
@@ -730,7 +730,7 @@ async function api(action, data={}, retry=1, forceShow=null) {
 // fire-and-forget（ローディング表示なし・画面をブロックしない）
 function apiAsync(action, data={}) {
   const dataStr = JSON.stringify(data);
-  const MAX = 4000;
+  const MAX = 1500;
   if (dataStr.length <= MAX) {
     const url = `${GAS_URL}?action=${encodeURIComponent(action)}&token=${encodeURIComponent(token)}&d=${encodeURIComponent(dataStr)}`;
     fetch(url).catch(()=>{});
