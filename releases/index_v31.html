@@ -239,7 +239,7 @@ body{background:var(--bg);color:var(--text);font-family:'Noto Sans JP',sans-seri
 .ppick{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px}
 .pp{background:var(--s2);border:1.5px solid var(--border);border-radius:8px;padding:9px;cursor:pointer;touch-action:manipulation;transition:all .13s}
 .pp:not(.pp-typed):active{transform:scale(.96)}
-.pp.pp-typed{cursor:default}
+.pp.pp-typed{cursor:default;touch-action:auto}
 .pp.on{background:rgba(184,134,11,.08);border-color:var(--goldd)}
 .pp-name{font-size:12px;font-weight:700;color:var(--text)}
 .pp.on .pp-name{color:var(--gold)}
@@ -1158,9 +1158,6 @@ function openNewOrder(deliveryType) {
   document.getElementById('order-modal-title').textContent = deliveryType==='shipping' ? '郵送注文受付' : '現地注文受付';
   document.getElementById('inp-note').value = '';
   setSegVal('seg-channel', T.channel);
-  // 支払い方法を現金にリセット（前回の選択が残らないように）
-  orderPayment = 'cash';
-  document.querySelectorAll('#pay-pick-order .pay-btn').forEach(x=>x.classList.toggle('on', x.dataset.pay==='cash'));
   renderPPick(); document.getElementById('qty-block').style.display='none';
   document.getElementById('inp-num').value = calcNextOrderNum();
   openOverlay('ov-order');
