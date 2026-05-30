@@ -238,8 +238,7 @@ body{background:var(--bg);color:var(--text);font-family:'Noto Sans JP',sans-seri
 .seg-btn.on{background:var(--s1);color:var(--gold);box-shadow:0 1px 3px rgba(0,0,0,.08)}
 .ppick{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px}
 .pp{background:var(--s2);border:1.5px solid var(--border);border-radius:8px;padding:9px;cursor:pointer;touch-action:manipulation;transition:all .13s}
-.pp:not(.pp-typed):active{transform:scale(.96)}
-.pp.pp-typed{cursor:default;touch-action:auto}
+.pp:active{transform:scale(.96)}
 .pp.on{background:rgba(184,134,11,.08);border-color:var(--goldd)}
 .pp-name{font-size:12px;font-weight:700;color:var(--text)}
 .pp.on .pp-name{color:var(--gold)}
@@ -1219,10 +1218,10 @@ function renderPPick() {
 
     const b=document.createElement('div');
     b.className=`pp${on?' on':''}`;
+    b.style.cursor='default';
 
     if (hasTypes) {
-      // タイプあり：pp-typed クラスを付与（iOS transform 無効化・cursor:default）
-      b.classList.add('pp-typed');
+      // タイプあり：タイプごとに個数設定
       const typesHtml = (p.types||[]).map(t=>{
         const qty = (T.selTypeQty[p.id]||{})[t.id] || 0;
         const tStock = isShipMode ? Number(t.stockShip||0) : Number(t.stockLoc||0);
@@ -1232,9 +1231,9 @@ function renderPPick() {
           <div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid var(--border);opacity:${isOos?0.4:1}">
             <div style="flex:1;font-size:12px;font-weight:600;color:${isLow?'var(--red)':'var(--text)'}">${t.name} <span style="font-weight:400;color:${isLow?'var(--red)':isOos?'var(--dim)':'var(--green)'}">${isOos?'在庫なし':isLow?`⚠${tStock}個`:`${tStock}個`}</span></div>
             <div style="display:flex;align-items:center">
-              <button class="qbtn" style="width:32px;height:32px;font-size:15px" ${isOos?'disabled':''} data-adj-pid="${p.id}" data-adj-tid="${t.id}" data-adj-d="-1">－</button>
-              <div class="qval" id="tq-${p.id}-${t.id}" style="width:34px;font-size:14px">${qty}</div>
-              <button class="qbtn" style="width:32px;height:32px;font-size:15px" ${isOos?'disabled':''} data-adj-pid="${p.id}" data-adj-tid="${t.id}" data-adj-d="1">＋</button>
+              <button class="qbtn" style="width:26px;height:26px;font-size:13px" ${isOos?'disabled':''} onclick="adjTypeQty('${p.id}','${t.id}',-1)">－</button>
+              <div class="qval" id="tq-${p.id}-${t.id}" style="width:32px;font-size:13px">${qty}</div>
+              <button class="qbtn" style="width:26px;height:26px;font-size:13px" ${isOos?'disabled':''} onclick="adjTypeQty('${p.id}','${t.id}',1)">＋</button>
             </div>
           </div>`;
       }).join('');
@@ -1245,20 +1244,8 @@ function renderPPick() {
           ${stockTxt}
         </div>
         <div style="border-top:1px solid var(--border);padding-top:4px">${typesHtml}</div>`;
-      // onclick属性ではなく addEventListener で登録（iOS Safari 対応）
-      b.querySelectorAll('[data-adj-pid]').forEach(btn=>{
-        btn.addEventListener('click', e=>{
-          e.stopPropagation();
-          adjTypeQty(btn.dataset.adjPid, btn.dataset.adjTid, Number(btn.dataset.adjD));
-        });
-        btn.addEventListener('touchend', e=>{
-          e.preventDefault(); e.stopPropagation();
-          adjTypeQty(btn.dataset.adjPid, btn.dataset.adjTid, Number(btn.dataset.adjD));
-        }, {passive:false});
-      });
     } else {
       // タイプなし：商品全体の個数
-      b.style.cursor='default';
       const qty = T.selProds[p.id]||0;
       b.innerHTML=`
         <div style="display:flex;align-items:center;gap:6px">
