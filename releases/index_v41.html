@@ -263,9 +263,6 @@ body{background:var(--bg);color:var(--text);font-family:'Noto Sans JP',sans-seri
 .tqb{background:var(--s2);border:1px solid var(--border);border-radius:6px;padding:6px 11px;font-size:12px;font-weight:600;color:var(--text);cursor:pointer;touch-action:manipulation;transition:all .12s}
 .tqb:active{transform:scale(.94)}
 .tqb.on{background:rgba(184,134,11,.08);border-color:var(--goldd);color:var(--gold)}
-.opt-chip{background:var(--s2);border:1.5px solid var(--border);border-radius:16px;padding:6px 13px;font-size:12px;font-weight:700;color:var(--dim);cursor:pointer;touch-action:manipulation;transition:all .13s}
-.opt-chip:active{transform:scale(.92)}
-.opt-chip.on{background:rgba(184,134,11,.12);border-color:var(--goldd);color:var(--gold)}
 .tadj{display:flex;align-items:center;gap:7px;margin-bottom:11px}
 .tbox{background:var(--s2);border:1px solid var(--border);border-radius:7px;padding:7px 14px;font-size:20px;font-weight:900;color:var(--gold);font-family:'Zen Kaku Gothic New',sans-serif;min-width:78px;text-align:center}
 .tadjcol{display:flex;flex-direction:column;gap:3px}
@@ -1425,19 +1422,10 @@ function renderQtyBlock() {
     const optCount = opt.count !== undefined ? opt.count : qty;
     const isLast = idx === optRows.length - 1;
     const key = row.pid+'__'+(row.tid||'');
-    // 適用個数チップ: [なし] [1個] ... [全員/あり]
-    const chipDefs = qty === 1
-      ? [['none','なし'], [1,'あり']]
-      : [['none','なし'], ...[...Array(qty-1)].map((_,c)=>[c+1,`${c+1}個`]), [qty,'全員']];
-    const chipsHtml = chipDefs.map(([val,lbl]) => {
-      const isOn = val==='none' ? opt.fee===0 : (opt.fee>0 && optCount===val);
-      const arg = typeof val==='string' ? `'${val}'` : val;
-      return `<button class="opt-chip${isOn?' on':''}" onclick="selectOptCount('${row.pid}','${row.tid}',${arg})">${lbl}</button>`;
-    }).join('');
     return `
       <div style="${isLast?'':'border-bottom:1px solid var(--border);padding-bottom:10px;margin-bottom:10px'}">
         <div style="font-size:13px;font-weight:700;margin-bottom:8px;color:var(--gold)">${row.label}</div>
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px">
           <div style="font-size:12px;color:var(--dim);flex-shrink:0;width:60px">追加料金</div>
           <div style="display:flex;align-items:center;gap:4px">
             <span style="font-size:13px;color:var(--dim)">¥</span>
@@ -1447,9 +1435,14 @@ function renderQtyBlock() {
           </div>
           ${opt.fee>0?'<span style="font-size:11px;color:var(--orange);font-weight:700">2値化×2</span>':'<span style="font-size:10px;color:var(--dim)">料金入力で2値化2倍</span>'}
         </div>
-        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px">
           <div style="font-size:12px;color:var(--dim);flex-shrink:0;width:60px">適用個数</div>
-          <div style="display:flex;flex-wrap:wrap;gap:5px">${chipsHtml}</div>
+          <div class="qty-ctrl">
+            <button class="qbtn" onclick="updateOptionCount('${row.pid}','${row.tid}',-1)">－</button>
+            <div class="qval" id="optcnt-${key}">${optCount}</div>
+            <button class="qbtn" onclick="updateOptionCount('${row.pid}','${row.tid}',+1)">＋</button>
+          </div>
+          <span style="font-size:11px;color:var(--dim)">/ ${qty}個（0=全体で1回分）</span>
         </div>
         <input type="text" inputmode="text" value="${opt.note||''}"
           placeholder="オプション内容（例：名入れ・背景除去）"
@@ -1482,18 +1475,6 @@ function updateOptionCount(pid, tid, delta) {
   T.options[key].count = Math.max(0, Math.min(qty, (T.options[key].count??qty) + delta));
   const el = document.getElementById('optcnt-'+key);
   if (el) el.textContent = T.options[key].count;
-}
-function selectOptCount(pid, tid, val) {
-  const key = pid + '__' + (tid||'');
-  const qty = tid ? ((T.selTypeQty[pid]||{})[tid]||1) : (T.selProds[pid]||1);
-  if (!T.options[key]) T.options[key] = { fee:0, note:'', count: qty };
-  if (val === 'none') {
-    T.options[key].fee = 0;
-    T.options[key].count = qty;
-  } else {
-    T.options[key].count = val;
-  }
-  renderQtyBlock();
 }
 function getOption(pid, tid) {
   const key = pid + '__' + (tid||'');
@@ -2357,15 +2338,7 @@ function openEditHistory(hid) {
     <div style="background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:6px">
       <div style="font-size:13px;font-weight:700;margin-bottom:8px">${baseName}${typeTag}</div>
       <div class="sh-lbl">価格（円）</div>
-      <input class="sh-input" style="margin-bottom:8px" type="number" inputmode="numeric" id="hist-price-${i}" value="${si.price||0}" oninput="updateHistTotal(${i})">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:11px">
-        <div style="font-size:12px;color:var(--dim);flex-shrink:0">追加料金を加算（円）</div>
-        <span style="font-size:13px;color:var(--dim)">¥</span>
-        <input type="number" inputmode="numeric" id="hist-optfee-${i}" value="0"
-          style="width:75px;background:var(--s1);border:1.5px solid var(--border);border-radius:7px;padding:6px 8px;font-size:14px;font-weight:700;color:var(--gold);outline:none"
-          oninput="updateHistTotal(${i})">
-        <span style="font-size:12px;color:var(--dim)">→ 合計: <span id="hist-total-${i}" style="font-weight:700;color:var(--text)">¥${(si.price||0).toLocaleString()}</span></span>
-      </div>
+      <input class="sh-input" style="margin-bottom:8px" type="number" inputmode="numeric" id="hist-price-${i}" value="${si.price||0}">
       <div class="sh-lbl">支払い方法</div>
       <div class="pay-pick" style="margin-bottom:0">
         ${Object.entries(PAY_LABELS).map(([k,l])=>`
@@ -2381,28 +2354,16 @@ function openEditHistory(hid) {
 function setHistPay(el, idx, val) {
   document.querySelectorAll(`[data-idx="${idx}"].pay-btn`).forEach(b=>b.classList.toggle('on',b===el));
 }
-function updateHistTotal(i) {
-  const priceEl  = document.getElementById(`hist-price-${i}`);
-  const optFeeEl = document.getElementById(`hist-optfee-${i}`);
-  const totalEl  = document.getElementById(`hist-total-${i}`);
-  if (!totalEl) return;
-  const p = parseInt(priceEl?.value)||0;
-  const f = parseInt(optFeeEl?.value)||0;
-  totalEl.textContent = '¥' + (p+f).toLocaleString();
-}
 
 async function saveHistEdit() {
   const h = historyData.find(x=>x.id===editingHistId);
   if (!h) return;
   const delivery = document.querySelector('#hist-seg-delivery .seg-btn.on')?.dataset.val || h.deliveryType;
   (h.salesItems||[]).forEach((si,i)=>{
-    const priceEl  = document.getElementById(`hist-price-${i}`);
-    const optFeeEl = document.getElementById(`hist-optfee-${i}`);
-    const payEl    = document.querySelector(`[data-idx="${i}"].pay-btn.on`);
-    const basePrice = priceEl ? (parseInt(priceEl.value)||si.price) : si.price;
-    const optFee    = optFeeEl ? (parseInt(optFeeEl.value)||0) : 0;
-    si.price = basePrice + optFee;
-    if (payEl) si.paymentMethod = payEl.dataset.pay;
+    const priceEl = document.getElementById(`hist-price-${i}`);
+    const payEl   = document.querySelector(`[data-idx="${i}"].pay-btn.on`);
+    if (priceEl) si.price = parseInt(priceEl.value)||si.price;
+    if (payEl)   si.paymentMethod = payEl.dataset.pay;
   });
   h.deliveryType = delivery;
   closeOverlay('ov-hist-edit');
