@@ -2184,9 +2184,14 @@ function openEditHistory(hid) {
     b.classList.toggle('on', b.dataset.val===(h.deliveryType||'same-day'));
   });
   const itemsEl = document.getElementById('hist-items-edit');
-  itemsEl.innerHTML = (h.salesItems||[]).map((si,i)=>`
+  itemsEl.innerHTML = (h.salesItems||[]).map((si,i)=>{
+    // typeName がある場合は表示（ローカル完了時）、productName に含まれてない場合のみ付加
+    const baseName = si.productName||'-';
+    const typeTag = si.typeName && !baseName.includes(`[${si.typeName}]`)
+      ? `<span style="font-size:11px;color:var(--blue);font-weight:600;margin-left:4px">[${si.typeName}]</span>` : '';
+    return `
     <div style="background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:6px">
-      <div style="font-size:13px;font-weight:700;margin-bottom:8px">${si.productName||'-'}</div>
+      <div style="font-size:13px;font-weight:700;margin-bottom:8px">${baseName}${typeTag}</div>
       <div class="sh-lbl">価格（円）</div>
       <input class="sh-input" style="margin-bottom:8px" type="number" inputmode="numeric" id="hist-price-${i}" value="${si.price||0}">
       <div class="sh-lbl">支払い方法</div>
@@ -2196,7 +2201,8 @@ function openEditHistory(hid) {
             ${k==='cash'?'💴':k==='airpay'?'💳':'📱'} ${l}
           </div>`).join('')}
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
   openOverlay('ov-hist-edit');
 }
 
