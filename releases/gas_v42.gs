@@ -81,8 +81,6 @@ function doGet(e) {
       case 'updateOrder':    return handleUpdateOrder(data);
       case 'completeOrder':  return handleCompleteOrder(data);
       case 'deleteOrder':    return handleDeleteOrder(data.orderId||'');
-      case 'deleteItem':     return handleDeleteItem(data);
-      case 'addItemToOrder': return handleAddItemToOrder(data);
       case 'deleteHistory':  return handleDeleteHistory(data);
       case 'saveProduct':     return handleSaveProduct(data.product||data);
       case 'deleteProduct':   return handleDeleteProduct(data.productId||'');
@@ -597,62 +595,6 @@ function handleDeleteOrder(orderId) {
   deleteRowsWhere(iSh, 1, orderId);
   ids.forEach(function(id){ deleteRowsWhere(ss.getSheetByName(SH.STEPS), 1, id); });
   return ok({ deleted: true });
-}
-
-// ============================================================
-//  アイテム単体削除（在庫戻し含む）
-// ============================================================
-function handleDeleteItem(data) {
-  if (!data.itemId) return err('itemId missing');
-  invalidateCache();
-  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-  // ステップ削除
-  deleteRowsWhere(ss.getSheetByName(SH.STEPS), 1, data.itemId);
-  // アイテム削除
-  deleteRowsWhere(ss.getSheetByName(SH.ITEMS), 0, data.itemId);
-  // 在庫を戻す
-  if (data.productId) {
-    handleAdjustStock({ productId: data.productId, typeId: data.typeId||'', delta: 1, isShip: data.isShip });
-  }
-  return ok({ deleted: true });
-}
-
-// ============================================================
-//  アイテム追加（既存注文に1個追加・在庫引き落とし）
-// ============================================================
-function handleAddItemToOrder(data) {
-  if (!data.orderId || !data.itemId) return err('data missing');
-  invalidateCache();
-  const ss   = SpreadsheetApp.openById(SPREADSHEET_ID);
-  const iSh  = ss.getSheetByName(SH.ITEMS);
-  const sSh  = ss.getSheetByName(SH.STEPS);
-  const now  = new Date().toISOString();
-
-  // アイテム行追加
-  iSh.appendRow([
-    data.itemId, data.orderId, data.pid, data.idx||0, 1,
-    0, 0, data.price||0, data.paymentMethod||'',
-    0, 0, data.typeId||'', data.typeName||'',
-    data.optionFee||0, data.optionNote||'', data.doubleBinarize?1:0
-  ]);
-
-  // ステップ行追加（受付=step0を自動完了）
-  var nSteps = data.deliveryType === 'shipping' ? 7 : 6;
-  var stepIds = [];
-  for (var si = 0; si < nSteps; si++) {
-    var sid = Utilities.getUuid();
-    stepIds.push(sid);
-    var isDone    = si === 0 ? 1 : 0;
-    var stepAt    = si === 0 ? now : '';
-    var startedAt = si === 0 ? now : (si === 1 ? now : '');
-    sSh.appendRow([sid, data.itemId, si, isDone, startedAt, stepAt, isDone ? 0 : '']);
-  }
-
-  // 在庫を引く
-  if (data.productId) {
-    handleAdjustStock({ productId: data.productId, typeId: data.typeId||'', delta: -1, isShip: data.isShip });
-  }
-  return ok({ item: { id: data.itemId, stepIds: stepIds } });
 }
 
 function handleDeleteHistory(data) {

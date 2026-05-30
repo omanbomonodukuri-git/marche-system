@@ -553,18 +553,6 @@ body{background:var(--bg);color:var(--text);font-family:'Noto Sans JP',sans-seri
 </div>
 </div>
 
-<!-- ITEM EDIT v2 (数量・支払い・価格・オプション変更) -->
-<div class="overlay" id="ov-item2">
-<div class="sheet">
-  <div class="sh-title">商品内容を変更</div>
-  <div id="item2-groups"></div>
-  <div class="sh-actions">
-    <button class="sh-cancel" onclick="closeOverlay('ov-item2')">キャンセル</button>
-    <button class="sh-ok" id="item2-ok">保存</button>
-  </div>
-</div>
-</div>
-
 <!-- PRODUCT MODAL -->
 <div class="overlay" id="ov-product">
 <div class="sheet">
@@ -710,7 +698,6 @@ let editingHistId = null;
 let T = {
   editOrderId: null, selProds: {}, delivery: 'same-day', channel: 'marche',
   editItemId: null, editOrderIdForItem: null,
-  itemGroups: [], editingOrderId: null,  // 商品変更モーダル用
   skipBinarize: false, skipDesign: false, itemPayment: 'cash', itemPrice: 0,
   editPid: null, stepTimes: {}, stockVal: 0, stockLocVal: 0, stockShipVal: 0, stockWarnVal: 3,
   stockAdjPid: null, stockAdjVal: 0,
@@ -1095,7 +1082,7 @@ function renderCard(o, container, deliveryType) {
   acts.className = 'och-actions';
   acts.innerHTML = `
     <div class="act-btn" onclick="openEditOrder('${o.id}')">✏️ 編集</div>
-    <div class="act-btn" onclick="openItemEdit('${o.id}')">📦 商品変更</div>
+    <div class="act-btn" onclick="openEditItem('${o.id}')">💰 価格</div>
     <div class="act-btn danger" onclick="confirmDeleteOrder('${o.id}')">🗑 削除</div>
   `;
   card.appendChild(acts);
@@ -1744,236 +1731,6 @@ document.getElementById('item-ok').addEventListener('click',async()=>{
   });
   closeOverlay('ov-item'); renderLocal(); renderShipping(); updateWait(); toast('更新しました');
 });
-
-// ============================================================
-//  商品変更モーダル v2（数量・支払い・価格・オプション）
-// ============================================================
-function openItemEdit(oid) {
-  const o = S.orders.find(x=>x.id===oid);
-  if (!o || !(o.items||[]).length) return;
-  T.editingOrderId = oid;
-
-  // items を pid×typeId でグループ化
-  const sorted = (o.items||[]).slice().sort((a,b)=>(a.idx||0)-(b.idx||0));
-  const groupMap = {};
-  const groupOrder = [];
-  sorted.forEach(it => {
-    const key = it.pid + '__' + (it.typeId||'');
-    if (!groupMap[key]) {
-      const p = S.products.find(x=>x.id===it.pid);
-      groupMap[key] = {
-        pid: it.pid,
-        tid: it.typeId||'',
-        typeName: it.typeName||'',
-        label: (p?.name||'?') + (it.typeName ? ` [${it.typeName}]` : ''),
-        price: it.price||0,
-        payment: it.paymentMethod||'cash',
-        optFee: 0,
-        optCount: 0,
-        items: [],
-        targetQty: 0,
-      };
-      groupOrder.push(key);
-    }
-    groupMap[key].items.push(it);
-  });
-
-  // optFee/optCount を計算
-  groupOrder.forEach(key => {
-    const g = groupMap[key];
-    g.targetQty = g.items.length;
-    const withOpt = g.items.filter(x=>x.optionFee>0);
-    g.optFee   = withOpt.length ? (withOpt[0].optionFee||0) : 0;
-    g.optCount = withOpt.length; // 0=none, N=first N items have optFee
-    // 全アイテムに同じoptFeeがあればoptCount=length (= "全員")
-    if (withOpt.length === g.items.length && g.items.length > 0) g.optCount = g.items.length;
-  });
-
-  T.itemGroups = groupOrder.map(k=>groupMap[k]);
-  renderItemEditModal();
-  openOverlay('ov-item2');
-}
-
-function renderItemEditModal() {
-  const container = document.getElementById('item2-groups');
-  if (!container) return;
-  container.innerHTML = T.itemGroups.map((g, gi) => {
-    const qty = g.targetQty;
-    const isGone = qty === 0;
-    // 個数チップ（適用個数）
-    const chipDefs = qty <= 1
-      ? [['none','なし'], [1,'あり']]
-      : [['none','なし'], ...[...Array(qty-1)].map((_,c)=>[c+1,`${c+1}個`]), [qty,'全員']];
-    const chipsHtml = chipDefs.map(([val,lbl]) => {
-      const isOn = val==='none' ? g.optFee===0 : (g.optFee>0 && g.optCount===val);
-      const arg = typeof val==='string' ? `'${val}'` : val;
-      return `<button class="opt-chip${isOn?' on':''}" onclick="item2SetOptCount(${gi},${arg})">${lbl}</button>`;
-    }).join('');
-
-    if (isGone) {
-      return `
-      <div style="background:rgba(208,48,48,.06);border:1px solid rgba(208,48,48,.25);border-radius:8px;padding:10px 12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">
-        <div>
-          <div style="font-size:13px;font-weight:700;color:var(--red)">${g.label}</div>
-          <div style="font-size:11px;color:var(--dim);margin-top:3px">削除予定（保存時に在庫を戻します）</div>
-        </div>
-        <button class="opt-chip" style="border-color:var(--red);color:var(--red)" onclick="changeGroupQty(${gi},${g.items.length})">元に戻す</button>
-      </div>`;
-    }
-
-    return `
-    <div style="background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:11px 12px;margin-bottom:8px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:8px;flex-wrap:wrap">
-        <div style="font-size:13px;font-weight:700;color:var(--gold);flex:1;min-width:0">${g.label}</div>
-        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
-          <span style="font-size:11px;color:var(--dim)">個数</span>
-          <div class="qty-ctrl">
-            <button class="qbtn" onclick="changeGroupQty(${gi},-1)">－</button>
-            <div class="qval">${qty}</div>
-            <button class="qbtn" onclick="changeGroupQty(${gi},+1)">＋</button>
-          </div>
-        </div>
-      </div>
-      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:9px">
-        <div style="font-size:11px;color:var(--dim);width:46px;flex-shrink:0">価格</div>
-        <span style="font-size:12px;color:var(--dim)">¥</span>
-        <input type="number" inputmode="numeric" value="${g.price}"
-          style="width:88px;background:var(--s1);border:1.5px solid var(--border);border-radius:6px;padding:7px 8px;font-size:15px;font-weight:700;color:var(--gold);outline:none;-webkit-appearance:none"
-          oninput="T.itemGroups[${gi}].price=parseInt(this.value)||0">
-        <div style="display:flex;gap:5px;flex-wrap:wrap;margin-left:4px">
-          ${['cash','airpay','paypay'].map(k=>`
-            <button class="pay-btn${g.payment===k?' on':''}" style="padding:7px 9px;font-size:11px;min-width:0"
-              onclick="item2SetPay(${gi},'${k}')">
-              ${k==='cash'?'💴 現金':k==='airpay'?'💳 Airpay':'📱 PayPay'}
-            </button>`).join('')}
-        </div>
-      </div>
-      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-        <div style="font-size:11px;color:var(--dim);width:46px;flex-shrink:0">追加料金</div>
-        <span style="font-size:12px;color:var(--dim)">¥</span>
-        <input type="number" inputmode="numeric" value="${g.optFee||0}" placeholder="0"
-          style="width:78px;background:var(--s1);border:1.5px solid var(--border);border-radius:6px;padding:7px 8px;font-size:14px;font-weight:700;color:var(--gold);outline:none;-webkit-appearance:none"
-          oninput="T.itemGroups[${gi}].optFee=parseInt(this.value)||0">
-        <div style="display:flex;flex-wrap:wrap;gap:4px">${chipsHtml}</div>
-      </div>
-    </div>`;
-  }).join('');
-}
-
-function item2SetPay(gi, pay) {
-  T.itemGroups[gi].payment = pay;
-  renderItemEditModal();
-}
-function item2SetOptCount(gi, val) {
-  const g = T.itemGroups[gi];
-  if (val === 'none') { g.optFee = 0; g.optCount = g.targetQty; }
-  else { g.optCount = val; }
-  renderItemEditModal();
-}
-function changeGroupQty(gi, delta) {
-  const g = T.itemGroups[gi];
-  const allOtherQty = T.itemGroups.reduce((s,x,i)=>i!==gi?s+x.targetQty:s, 0);
-  if (delta < 0 && g.targetQty + delta < 0) return;
-  if (delta < 0 && g.targetQty + delta === 0 && allOtherQty === 0) {
-    toast('⚠️ 商品を0個にはできません。注文ごと削除するには🗑削除を使ってください');
-    return;
-  }
-  g.targetQty = Math.max(0, g.targetQty + delta);
-  if (g.optCount > g.targetQty) g.optCount = g.targetQty;
-  renderItemEditModal();
-}
-
-document.getElementById('item2-ok').addEventListener('click', saveItemEdit);
-
-async function saveItemEdit() {
-  const oid = T.editingOrderId;
-  const o = S.orders.find(x=>x.id===oid);
-  if (!o) return;
-
-  const totalTarget = T.itemGroups.reduce((s,g)=>s+g.targetQty, 0);
-  if (totalTarget === 0) { toast('⚠️ 商品が0個になります'); return; }
-
-  closeOverlay('ov-item2');
-
-  const isShip = o.deliveryType === 'shipping';
-  const nSteps = isShip ? 7 : 6;
-
-  for (const g of T.itemGroups) {
-    const existQty = g.items.length;
-    const tgtQty   = g.targetQty;
-
-    // 1. 既存アイテムの価格・支払い・追加料金を更新
-    g.items.forEach((it, i) => {
-      const hasOpt = i < (g.optCount || 0);
-      const optFee = (hasOpt && g.optFee > 0) ? g.optFee : 0;
-      it.price = g.price;
-      it.paymentMethod = g.payment;
-      it.optionFee = optFee;
-      it.doubleBinarize = optFee > 0;
-      apiAsync('updateItem', { itemId:it.id, price:g.price, paymentMethod:g.payment, optionFee:optFee, doubleBinarize:optFee>0 });
-    });
-
-    // 2. 削除（末尾から）
-    if (tgtQty < existQty) {
-      const toRemove = g.items.slice(tgtQty);
-      for (const it of toRemove) {
-        o.items = o.items.filter(x=>x.id !== it.id);
-        const p = S.products.find(x=>x.id===g.pid);
-        if (p) {
-          if (g.tid && (p.types||[]).some(t=>t.id===g.tid)) {
-            const t = p.types.find(x=>x.id===g.tid);
-            if (t) isShip ? t.stockShip++ : t.stockLoc++;
-          } else { isShip ? p.stockShip++ : p.stockLoc++; }
-        }
-        await api('deleteItem', { itemId:it.id, productId:g.pid, typeId:g.tid, isShip }, 1, false);
-      }
-    }
-
-    // 3. 追加
-    if (tgtQty > existQty) {
-      const addCount = tgtQty - existQty;
-      const maxIdx = Math.max(...(o.items||[]).map(x=>x.idx||0), -1);
-      for (let ai = 0; ai < addCount; ai++) {
-        const newIdx = maxIdx + ai + 1;
-        const globalI = existQty + ai;
-        const hasOpt  = globalI < (g.optCount || 0);
-        const optFee  = (hasOpt && g.optFee > 0) ? g.optFee : 0;
-        const newId   = 'i' + Date.now().toString(36) + Math.random().toString(36).slice(2,5);
-        const now     = new Date().toISOString();
-
-        const p = S.products.find(x=>x.id===g.pid);
-        if (p) {
-          if (g.tid && (p.types||[]).some(t=>t.id===g.tid)) {
-            const t = p.types.find(x=>x.id===g.tid);
-            if (t) isShip ? t.stockShip-- : t.stockLoc--;
-          } else { isShip ? p.stockShip-- : p.stockLoc--; }
-        }
-
-        const res = await api('addItemToOrder', {
-          orderId: oid, itemId: newId, pid: g.pid, idx: newIdx,
-          price: g.price, paymentMethod: g.payment,
-          typeId: g.tid, typeName: g.typeName,
-          optionFee: optFee, doubleBinarize: optFee>0,
-          deliveryType: o.deliveryType,
-          productId: g.pid, isShip
-        }, 1, false);
-
-        // ローカルにアイテムを追加
-        const stepList = [];
-        const stepIds = res?.item?.stepIds || [];
-        for (let si = 0; si < nSteps; si++) {
-          stepList.push({ id: stepIds[si]||('s'+si), itemId: newId, stepIndex: si,
-            done: si===0, startedAt: si<=1?now:'', completedAt: si===0?now:'', durationMins:'' });
-        }
-        o.items.push({ id:newId, orderId:oid, pid:g.pid, idx:newIdx, typeId:g.tid, typeName:g.typeName,
-          price:g.price, paymentMethod:g.payment, optionFee:optFee, doubleBinarize:optFee>0,
-          skipBinarize:false, skipDesign:false, onHold:false, paid:false, steps:stepList });
-      }
-    }
-  }
-
-  renderLocal(); renderShipping(); updateWait(); toast('更新しました');
-}
 
 // ============================================================
 //  DELETE
