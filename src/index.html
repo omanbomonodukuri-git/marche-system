@@ -490,6 +490,7 @@ body{background:var(--bg);color:var(--text);font-family:'Noto Sans JP',sans-seri
   <div id="qty-block" style="display:none">
     <div class="sh-lbl">個数・支払い</div>
     <div id="qty-section"></div>
+    <div id="stock-warn-section"></div>
     <div class="sh-lbl" style="margin-top:4px">オプション追加料金</div>
     <div style="background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:11px">
       <div style="font-size:11px;color:var(--dim);margin-bottom:8px">オプションがある商品に追加料金と内容を入力してください。2値化時間が自動で2倍になります。</div>
@@ -504,6 +505,18 @@ body{background:var(--bg);color:var(--text);font-family:'Noto Sans JP',sans-seri
   </div>
   <div class="sh-lbl">備考・デザイン要望</div>
   <textarea class="sh-textarea" id="inp-note" placeholder="例：ペットの写真・名前入れ など"></textarea>
+  <div id="shipping-fee-row" style="display:none;margin-bottom:11px">
+    <div class="sh-lbl">送料</div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">
+      <button class="opt-chip" data-sfee="0" onclick="selectShippingFee(0)">なし</button>
+      <button class="opt-chip" data-sfee="500" onclick="selectShippingFee(500)">¥500</button>
+      <button class="opt-chip" data-sfee="700" onclick="selectShippingFee(700)">¥700</button>
+      <button class="opt-chip" data-sfee="-1" onclick="selectShippingFee(-1)">任意</button>
+      <input id="inp-shipping-fee-custom" type="number" inputmode="numeric" placeholder="金額"
+        style="display:none;width:90px;background:var(--s1);border:1.5px solid var(--border);border-radius:6px;padding:7px 8px;font-size:14px;font-weight:700;color:var(--gold);outline:none;-webkit-appearance:none"
+        oninput="T.shippingFee=parseInt(this.value)||0">
+    </div>
+  </div>
   <div class="sh-actions">
     <button class="sh-cancel" id="order-cancel">キャンセル</button>
     <button class="sh-ok"     id="order-ok">受付確定</button>
@@ -631,6 +644,26 @@ body{background:var(--bg);color:var(--text);font-family:'Noto Sans JP',sans-seri
       <button class="qbtn" id="stock-adj-plus">＋</button>
     </div>
   </div>
+  <div class="sh-lbl" style="margin-top:4px">在庫移動</div>
+  <div style="background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:11px" id="stock-transfer-area">
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:9px">
+      <div style="font-size:12px;color:var(--dim);flex-shrink:0">移動方向</div>
+      <div style="display:flex;gap:5px">
+        <button class="opt-chip on" id="xfer-dir-to-ship" onclick="setXferDir(true)" touch-action="manipulation">🏪→📦 現地→郵送</button>
+        <button class="opt-chip" id="xfer-dir-to-loc" onclick="setXferDir(false)" touch-action="manipulation">📦→🏪 郵送→現地</button>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:9px">
+      <div style="font-size:12px;color:var(--dim);flex-shrink:0">移動数</div>
+      <div class="qty-ctrl">
+        <button class="qbtn" onclick="adjXferAmt(-1)">－</button>
+        <div class="qval" id="xfer-amt-val" style="width:40px">1</div>
+        <button class="qbtn" onclick="adjXferAmt(+1)">＋</button>
+      </div>
+      <span style="font-size:11px;color:var(--dim)" id="xfer-type-sel"></span>
+    </div>
+    <button onclick="doTransferStock()" style="background:var(--blue);color:#fff;border:none;border-radius:6px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;touch-action:manipulation;width:100%">移動する</button>
+  </div>
   <div class="sh-lbl">理由</div>
   <div class="seg" id="seg-stock-reason" style="margin-bottom:11px">
     <div class="seg-btn on" data-val="mistake">制作ミス</div>
@@ -722,6 +755,8 @@ let T = {
   selTypeQty: {},    // 新：{pid: {typeId: qty}}
   options: {},       // {pid__tid: {fee: 0, note: '', count: N}} オプション料金
   editItemOptFee: 0, editItemOptCount: 0, editItemOptTotal: 1,
+  shippingFee: 0,
+  xferToShip: true, xferAmt: 1, xferTypeId: '',
 };
 let orderPayment = 'cash';
 
@@ -1036,6 +1071,7 @@ function renderCard(o, container, deliveryType) {
       <span class="badge ${isShip?'badge-ship':'badge-loc'}">${isShip?'郵送':'現地'}</span>
       ${allOnHold?'<span class="badge badge-hold">保留中</span>':''}
       ${o.channel?`<span class="badge badge-ch">${CH_ICONS[o.channel]} ${CH_LABELS[o.channel]||o.channel}</span>`:''}
+      ${o.shippingFee>0?`<span style="font-size:11px;background:rgba(94,224,127,.1);color:var(--green);border:1px solid rgba(94,224,127,.3);border-radius:4px;padding:1px 6px;font-weight:700">送料 ¥${Number(o.shippingFee).toLocaleString()}</span>`:''}
       <div class="och-info">${o.note?`<div class="och-note">📝 ${o.note}</div>`:''}</div>
       <div class="och-times">${timeHtml}</div>
     </div>
@@ -1182,7 +1218,7 @@ function tapStep(btn, deliveryType) {
         const pr = S.products.find(x=>x.id===it.pid);
         return { pid:it.pid, productName:pr?.name||'', typeName:it.typeName||'', price:it.price||pr?.price||0, paymentMethod:it.paymentMethod||'' };
       });
-      apiAsync('completeOrder', { orderId:order.id, num:order.num, completedAt:now, deliveryType:order.deliveryType, channel:order.channel||'marche', items:items4hist });
+      apiAsync('completeOrder', { orderId:order.id, num:order.num, completedAt:now, deliveryType:order.deliveryType, channel:order.channel||'marche', items:items4hist, shippingFee:order.shippingFee||0, shippingPayment:order.shippingPayment||order.items?.[0]?.paymentMethod||'cash' });
     } else {
       const nextItem = (order.items||[]).find(it=>!it.steps.every(s=>s.done));
       if (nextItem) {
@@ -1237,6 +1273,11 @@ function openNewOrder(deliveryType) {
   // 支払い方法を現金にリセット（前回の選択が残らないように）
   orderPayment = 'cash';
   document.querySelectorAll('#pay-pick-order .pay-btn').forEach(x=>x.classList.toggle('on', x.dataset.pay==='cash'));
+  // 送料初期化
+  T.shippingFee = 0;
+  document.getElementById('shipping-fee-row').style.display = deliveryType === 'shipping' ? '' : 'none';
+  document.querySelectorAll('[data-sfee]').forEach(b=>b.classList.toggle('on', b.dataset.sfee==='0'));
+  document.getElementById('inp-shipping-fee-custom').style.display='none';
   renderPPick(); document.getElementById('qty-block').style.display='none';
   document.getElementById('inp-num').value = calcNextOrderNum();
   openOverlay('ov-order');
@@ -1253,6 +1294,14 @@ function openEditOrder(oid) {
   setSegVal('seg-channel', T.channel);
   T.selProds={};
   (o.items||[]).forEach(it=>{ T.selProds[it.pid]=(T.selProds[it.pid]||0)+1; });
+  // 送料
+  T.shippingFee = Number(o.shippingFee||0);
+  const sfRow = document.getElementById('shipping-fee-row');
+  sfRow.style.display = o.deliveryType === 'shipping' ? '' : 'none';
+  const sfVal = [0,500,700].includes(T.shippingFee) ? T.shippingFee : (T.shippingFee > 0 ? -1 : 0);
+  document.querySelectorAll('[data-sfee]').forEach(b=>b.classList.toggle('on', Number(b.dataset.sfee)===sfVal));
+  const custEl = document.getElementById('inp-shipping-fee-custom');
+  if (sfVal === -1) { custEl.style.display=''; custEl.value=T.shippingFee; } else { custEl.style.display='none'; }
   renderPPick(); renderQtyBlock();
   openOverlay('ov-order');
 }
@@ -1411,6 +1460,49 @@ function renderQtyBlock() {
   block.style.display = hasAny ? '' : 'none';
   document.getElementById('qty-section').innerHTML='';
 
+  // 郵送在庫不足警告
+  const warnEl = document.getElementById('stock-warn-section');
+  if (warnEl) {
+    if (T.delivery === 'shipping') {
+      const warns = [];
+      // Check type products
+      Object.entries(T.selTypeQty).forEach(([pid, typeQtys]) => {
+        const p = S.products.find(x=>x.id===pid);
+        if (!p) return;
+        Object.entries(typeQtys).forEach(([tid, qty]) => {
+          if (qty <= 0) return;
+          const typeObj = (p.types||[]).find(t=>t.id===tid);
+          if (!typeObj) return;
+          const shipStock = Number(typeObj.stockShip||0);
+          const locStock = Number(typeObj.stockLoc||0);
+          if (shipStock < qty && locStock > 0) {
+            warns.push(`<div style="background:rgba(230,160,40,.1);border:1px solid rgba(230,160,40,.4);border-radius:7px;padding:8px 10px;margin-bottom:6px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px">
+              <div style="font-size:12px;color:var(--gold)">⚠️ <b>${p.name}[${typeObj.name}]</b> 郵送在庫${shipStock}個（現地${locStock}個）</div>
+              <button class="opt-chip" style="font-size:11px;padding:4px 10px;touch-action:manipulation" onclick="quickTransferStock('${p.id}','${tid}',1)">現地→郵送 移動</button>
+            </div>`);
+          }
+        });
+      });
+      // Check no-type products
+      Object.entries(T.selProds).forEach(([pid, qty]) => {
+        if (qty <= 0) return;
+        const p = S.products.find(x=>x.id===pid);
+        if (!p || (p.types||[]).length > 0) return;
+        const shipStock = Number(p.stockShip||0);
+        const locStock = Number(p.stockLoc||0);
+        if (shipStock < qty && locStock > 0) {
+          warns.push(`<div style="background:rgba(230,160,40,.1);border:1px solid rgba(230,160,40,.4);border-radius:7px;padding:8px 10px;margin-bottom:6px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px">
+            <div style="font-size:12px;color:var(--gold)">⚠️ <b>${p.name}</b> 郵送在庫${shipStock}個（現地${locStock}個）</div>
+            <button class="opt-chip" style="font-size:11px;padding:4px 10px;touch-action:manipulation" onclick="quickTransferStock('${p.id}','',1)">現地→郵送 移動</button>
+          </div>`);
+        }
+      });
+      warnEl.innerHTML = warns.join('');
+    } else {
+      warnEl.innerHTML = '';
+    }
+  }
+
   // オプション入力欄をレンダリング
   const optEl = document.getElementById('option-section');
   // 選択されている全商品のpidを収集
@@ -1542,9 +1634,9 @@ async function saveOrder() {
   });
 
   if (T.editOrderId) {
-    await api('updateOrder',{orderId:T.editOrderId,num,note,deliveryType:T.delivery,channel:T.channel});
+    await api('updateOrder',{orderId:T.editOrderId,num,note,deliveryType:T.delivery,channel:T.channel,shippingFee:T.shippingFee||0});
     const o=S.orders.find(x=>x.id===T.editOrderId);
-    if(o){o.num=num;o.note=note;o.deliveryType=T.delivery;o.channel=T.channel;}
+    if(o){o.num=num;o.note=note;o.deliveryType=T.delivery;o.channel=T.channel;o.shippingFee=T.shippingFee||0;}
     toast('更新しました'); closeOverlay('ov-order'); renderLocal(); renderShipping(); updateWait(); return;
   }
   if (!sel.length && !selWithTypes.length) { toast('商品を選択してください'); return; }
@@ -1617,7 +1709,7 @@ async function saveOrder() {
     }
   });
 
-  const order={id:orderId,num,note,deliveryType:T.delivery,channel:T.channel,createdAt:now,status:'active',items};
+  const order={id:orderId,num,note,deliveryType:T.delivery,channel:T.channel,createdAt:now,status:'active',items,shippingFee:T.shippingFee||0};
   isSaving=true;
   closeOverlay('ov-order');
   toast('⏳ 登録中...');
@@ -1630,7 +1722,7 @@ async function saveOrder() {
     doubleBinarize:it.doubleBinarize||false,
     stepIds:it.steps.map(s=>s.id),step0Done:true,step0At:now
   }));
-  const saved=await api('saveOrderFast',{id:orderId,num,note,deliveryType:T.delivery,channel:T.channel,createdAt:now,items:lightItems});
+  const saved=await api('saveOrderFast',{id:orderId,num,note,deliveryType:T.delivery,channel:T.channel,createdAt:now,items:lightItems,shippingFee:T.shippingFee||0});
   isSaving=false;
   if (!saved) { toast('❌ 登録失敗。もう一度お試しください'); return; }
   S.orders.push(order);
@@ -2326,6 +2418,16 @@ function openStockAdj(pid) {
       </div>`).join('');
     T.stockAdjTypes = JSON.parse(JSON.stringify(p.types));
     stockAdjVal = -1;
+    // Show type selector in transfer area
+    if ((p.types||[]).length > 0) {
+      T.xferTypeId = p.types[0].id;
+      document.getElementById('xfer-type-sel').innerHTML = p.types.map(t=>
+        `<button class="opt-chip${T.xferTypeId===t.id?' on':''}" onclick="T.xferTypeId='${t.id}';document.querySelectorAll('#xfer-type-sel .opt-chip').forEach(b=>b.classList.toggle('on',b.textContent==='${t.name}'))" style="touch-action:manipulation">${t.name}</button>`
+      ).join(' ');
+    } else {
+      T.xferTypeId = '';
+      document.getElementById('xfer-type-sel').innerHTML = '';
+    }
   } else {
     document.getElementById('stock-current').innerHTML = `
       <div style="display:flex;flex-direction:column;gap:8px">
@@ -2352,7 +2454,13 @@ function openStockAdj(pid) {
     T.stockAdjTypes = null;
     T.stockAdjNoTypeLoc  = p.stockLoc||0;
     T.stockAdjNoTypeShip = p.stockShip||0;
+    T.xferTypeId = '';
+    document.getElementById('xfer-type-sel').innerHTML = '';
   }
+  // Reset transfer direction/amount
+  T.xferToShip = true; T.xferAmt = 1;
+  setXferDir(true);
+  document.getElementById('xfer-amt-val').textContent = '1';
   openOverlay('ov-stock');
 }
 
@@ -2822,6 +2930,83 @@ document.querySelectorAll('.tab').forEach(tab=>{
     if(tab.dataset.tab==='analytics'){anAllHistory=[];window._stepAvgCache={};window._prodAvgCache={};window._shipAvgCache=null;renderAnalytics();}
   });
 });
+
+// ============================================================
+//  SHIPPING FEE
+// ============================================================
+function selectShippingFee(val) {
+  document.querySelectorAll('[data-sfee]').forEach(b=>b.classList.toggle('on', Number(b.dataset.sfee)===val));
+  const custEl = document.getElementById('inp-shipping-fee-custom');
+  if (val === -1) {
+    custEl.style.display = '';
+    T.shippingFee = parseInt(custEl.value)||0;
+    custEl.focus();
+  } else {
+    custEl.style.display = 'none';
+    T.shippingFee = val;
+  }
+}
+
+// ============================================================
+//  STOCK TRANSFER
+// ============================================================
+function setXferDir(toShip) {
+  T.xferToShip = toShip;
+  document.getElementById('xfer-dir-to-ship').classList.toggle('on', toShip);
+  document.getElementById('xfer-dir-to-loc').classList.toggle('on', !toShip);
+}
+function adjXferAmt(d) {
+  T.xferAmt = Math.max(1, (T.xferAmt||1) + d);
+  document.getElementById('xfer-amt-val').textContent = T.xferAmt;
+}
+async function doTransferStock() {
+  const p = S.products.find(x=>x.id===T.stockAdjPid);
+  if (!p) return;
+  const tid = T.xferTypeId || '';
+  const amt = T.xferAmt || 1;
+  const toShip = T.xferToShip !== false;
+
+  // Update local state
+  if (T.stockAdjTypes && tid) {
+    const t = T.stockAdjTypes.find(x=>x.id===tid);
+    if (t) {
+      if (toShip) { t.stockLoc = Math.max(0,(t.stockLoc||0)-amt); t.stockShip = (t.stockShip||0)+amt; }
+      else { t.stockShip = Math.max(0,(t.stockShip||0)-amt); t.stockLoc = (t.stockLoc||0)+amt; }
+    }
+    p.types = T.stockAdjTypes;
+    // Refresh display values
+    T.stockAdjTypes.forEach((tt,i) => {
+      const le=document.getElementById('tadj-loc-'+i); const se=document.getElementById('tadj-ship-'+i);
+      if(le) le.textContent=tt.stockLoc||0; if(se) se.textContent=tt.stockShip||0;
+    });
+  } else {
+    if (toShip) { T.stockAdjNoTypeLoc=Math.max(0,(T.stockAdjNoTypeLoc||0)-amt); T.stockAdjNoTypeShip=(T.stockAdjNoTypeShip||0)+amt; }
+    else { T.stockAdjNoTypeShip=Math.max(0,(T.stockAdjNoTypeShip||0)-amt); T.stockAdjNoTypeLoc=(T.stockAdjNoTypeLoc||0)+amt; }
+    p.stockLoc=T.stockAdjNoTypeLoc; p.stockShip=T.stockAdjNoTypeShip;
+    const le=document.getElementById('notadj-loc'); const se=document.getElementById('notadj-ship');
+    if(le) le.textContent=T.stockAdjNoTypeLoc; if(se) se.textContent=T.stockAdjNoTypeShip;
+  }
+
+  renderMaster();
+  const res = await api('transferStock', { productId:p.id, typeId:tid, amount:amt, toShip }, 1, false);
+  if (res) toast(`✅ ${amt}個 ${toShip?'現地→郵送':'郵送→現地'} 移動しました`);
+}
+
+async function quickTransferStock(pid, tid, amt) {
+  const p = S.products.find(x=>x.id===pid);
+  if (!p) return;
+  // Update local state
+  if (tid && (p.types||[]).length > 0) {
+    const t = p.types.find(x=>x.id===tid);
+    if (t) { t.stockLoc = Math.max(0,(t.stockLoc||0)-amt); t.stockShip = (t.stockShip||0)+amt; }
+  } else {
+    p.stockLoc = Math.max(0,(p.stockLoc||0)-amt);
+    p.stockShip = (p.stockShip||0)+amt;
+  }
+  renderQtyBlock(); // refresh warning
+  const res = await api('transferStock', { productId:pid, typeId:tid, amount:amt, toShip:true }, 1, false);
+  if (res) toast(`✅ ${amt}個 現地→郵送 移動しました`);
+}
 
 // ============================================================
 //  OVERLAY / CONFIRM / TOAST
