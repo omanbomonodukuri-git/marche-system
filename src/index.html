@@ -1339,18 +1339,24 @@ function renderPPick() {
     // 配送方法に応じた在庫を表示
     const isShipMode = T.delivery === 'shipping';
     let stockTxt='';
-    let cardOos = false; // カード全体が在庫0か
+    let cardOos = false; // カード全体が在庫0か（移動できる場合はfalse）
     if (hasTypes) {
       const total=(p.types||[]).reduce((s,t)=>s+Number(isShipMode?t.stockShip:t.stockLoc||0),0);
+      const totalLoc=isShipMode?(p.types||[]).reduce((s,t)=>s+Number(t.stockLoc||0),0):0;
+      const hasTransferable=isShipMode&&total===0&&totalLoc>0;
       const label = isShipMode?'郵送在庫':'現地在庫';
-      cardOos = total===0;
+      cardOos = total===0 && !hasTransferable;
       if(total>0) stockTxt=`<div class="pp-stock ${total<=p.stockWarn?'low':'ok'}">${label} ${total}個</div>`;
+      else if(hasTransferable) stockTxt=`<div class="pp-stock" style="color:var(--gold);font-weight:700">📦 現地から移動可</div>`;
       else stockTxt=`<div class="pp-stock" style="color:var(--red);font-weight:700">⚠ 在庫なし</div>`;
     } else {
       const stock = isShipMode ? Number(p.stockShip||0) : Number(p.stockLoc||0);
+      const locStockVal = isShipMode ? Number(p.stockLoc||0) : 0;
       const label = isShipMode?'郵送在庫':'現地在庫';
-      cardOos = stock===0;
+      const canTransferCard = isShipMode && stock===0 && locStockVal>0;
+      cardOos = stock===0 && !canTransferCard;
       if(stock>0) stockTxt=`<div class="pp-stock ${stock<=p.stockWarn?'low':'ok'}">${label} ${stock}個</div>`;
+      else if(canTransferCard) stockTxt=`<div class="pp-stock" style="color:var(--gold);font-weight:700">📦 現地から移動可</div>`;
       else stockTxt=`<div class="pp-stock" style="color:var(--red);font-weight:700">⚠ 在庫なし</div>`;
     }
 
@@ -1365,16 +1371,23 @@ function renderPPick() {
       const typesHtml = (p.types||[]).map(t=>{
         const qty = (T.selTypeQty[p.id]||{})[t.id] || 0;
         const tStock = isShipMode ? Number(t.stockShip||0) : Number(t.stockLoc||0);
+        const tLocStock = isShipMode ? Number(t.stockLoc||0) : 0;
+        const tCanTransfer = isShipMode && tStock===0 && tLocStock>0;
+        const isOos = tStock===0 && !tCanTransfer;
         const isLow = tStock>0 && tStock<=p.stockWarn;
-        const isOos = tStock===0;
+        const statusColor = isLow?'var(--red)':isOos?'var(--dim)':tCanTransfer?'var(--gold)':'var(--green)';
+        const statusTxt = isOos?'在庫なし':tCanTransfer?`現地${tLocStock}個`:isLow?`⚠${tStock}個`:`${tStock}個`;
         return `
           <div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid var(--border);opacity:${isOos?0.4:1}">
-            <div style="flex:1;font-size:12px;font-weight:600;color:${isLow?'var(--red)':'var(--text)'}">${t.name} <span style="font-weight:400;color:${isLow?'var(--red)':isOos?'var(--dim)':'var(--green)'}">${isOos?'在庫なし':isLow?`⚠${tStock}個`:`${tStock}個`}</span></div>
-            <div style="display:flex;align-items:center">
-              <button class="qbtn" style="width:32px;height:32px;font-size:15px" ${isOos?'disabled':''} data-adj-pid="${p.id}" data-adj-tid="${t.id}" data-adj-d="-1">－</button>
-              <div class="qval" id="tq-${p.id}-${t.id}" style="width:34px;font-size:14px">${qty}</div>
-              <button class="qbtn" style="width:32px;height:32px;font-size:15px" ${isOos?'disabled':''} data-adj-pid="${p.id}" data-adj-tid="${t.id}" data-adj-d="1">＋</button>
-            </div>
+            <div style="flex:1;font-size:12px;font-weight:600;color:${isLow?'var(--red)':'var(--text)'}">${t.name} <span style="font-weight:400;color:${statusColor}">${statusTxt}</span></div>
+            ${tCanTransfer
+              ? `<button class="opt-chip" style="font-size:10px;padding:4px 10px;touch-action:manipulation" onclick="quickTransferStock('${p.id}','${t.id}',1);event.stopPropagation()">📦 移動</button>`
+              : `<div style="display:flex;align-items:center">
+                  <button class="qbtn" style="width:32px;height:32px;font-size:15px" ${isOos?'disabled':''} data-adj-pid="${p.id}" data-adj-tid="${t.id}" data-adj-d="-1">－</button>
+                  <div class="qval" id="tq-${p.id}-${t.id}" style="width:34px;font-size:14px">${qty}</div>
+                  <button class="qbtn" style="width:32px;height:32px;font-size:15px" ${isOos?'disabled':''} data-adj-pid="${p.id}" data-adj-tid="${t.id}" data-adj-d="1">＋</button>
+                </div>`
+            }
           </div>`;
       }).join('');
       b.innerHTML=`
@@ -1395,18 +1408,23 @@ function renderPPick() {
       // タイプなし：商品全体の個数
       b.style.cursor = cardOos ? 'not-allowed' : 'default';
       const stock = isShipMode ? Number(p.stockShip||0) : Number(p.stockLoc||0);
+      const locStockVal2 = isShipMode ? Number(p.stockLoc||0) : 0;
+      const canTransferCard2 = isShipMode && stock===0 && locStockVal2>0;
       const qty = T.selProds[p.id]||0;
       const atMax = qty >= stock; // 在庫上限に達している
       b.innerHTML=`
-        <div style="display:flex;align-items:center;gap:6px">
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
           <div class="pp-name" style="flex:1">${p.name}</div>
           <div class="pp-sub">約${p.totalMinutes}分 ¥${Number(p.price||0).toLocaleString()}</div>
           ${stockTxt}
         </div>
         <div style="display:flex;align-items:center;justify-content:flex-end;margin-top:6px;gap:6px">
-          <button class="qbtn" style="width:28px;height:28px;font-size:14px" onclick="adjProdQty('${p.id}',-1)">－</button>
-          <div class="qval" id="pq-${p.id}" style="width:34px;font-size:14px">${qty}</div>
-          <button class="qbtn" style="width:28px;height:28px;font-size:14px" ${(cardOos||atMax)?'disabled':''} onclick="adjProdQty('${p.id}',1)">＋</button>
+          ${canTransferCard2
+            ? `<button class="opt-chip" style="font-size:11px;padding:5px 12px;touch-action:manipulation" onclick="quickTransferStock('${p.id}','',1)">📦 現地→郵送 移動（現地${locStockVal2}個）</button>`
+            : `<button class="qbtn" style="width:28px;height:28px;font-size:14px" onclick="adjProdQty('${p.id}',-1)">－</button>
+               <div class="qval" id="pq-${p.id}" style="width:34px;font-size:14px">${qty}</div>
+               <button class="qbtn" style="width:28px;height:28px;font-size:14px" ${(cardOos||atMax)?'disabled':''} onclick="adjProdQty('${p.id}',1)">＋</button>`
+          }
         </div>`;
     }
     el.appendChild(b);
@@ -3025,7 +3043,8 @@ async function quickTransferStock(pid, tid, amt) {
     p.stockLoc = Math.max(0,(p.stockLoc||0)-amt);
     p.stockShip = (p.stockShip||0)+amt;
   }
-  renderQtyBlock(); // refresh warning
+  renderPPick();    // カードの在庫表示を更新
+  renderQtyBlock(); // 警告セクションを更新
   const res = await api('transferStock', { productId:pid, typeId:tid, amount:amt, toShip:true }, 1, false);
   if (res) toast(`✅ ${amt}個 現地→郵送 移動しました`);
 }
