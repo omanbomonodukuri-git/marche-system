@@ -493,7 +493,7 @@ body{background:var(--bg);color:var(--text);font-family:'Noto Sans JP',sans-seri
     <div id="stock-warn-section"></div>
     <div class="sh-lbl" style="margin-top:4px">オプション追加料金</div>
     <div style="background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:11px">
-      <div style="font-size:11px;color:var(--dim);margin-bottom:8px">オプションがある商品に追加料金と内容を入力してください。2値化時間が自動で2倍になります。</div>
+      <div style="font-size:11px;color:var(--dim);margin-bottom:8px">追加料金をタップで選択。2値化時間が自動で2倍になります。</div>
       <div id="option-section"></div>
     </div>
     <div class="sh-lbl">支払い方法</div>
@@ -1532,48 +1532,80 @@ function renderQtyBlock() {
     const qty = row.tid ? ((T.selTypeQty[row.pid]||{})[row.tid]||1) : (T.selProds[row.pid]||1);
     const optCount = opt.count !== undefined ? opt.count : qty;
     const isLast = idx === optRows.length - 1;
-    const key = row.pid+'__'+(row.tid||'');
-    // 適用個数チップ: [なし] [1個] ... [全員/あり]
-    const chipDefs = qty === 1
-      ? [['none','なし'], [1,'あり']]
-      : [['none','なし'], ...[...Array(qty-1)].map((_,c)=>[c+1,`${c+1}個`]), [qty,'全員']];
-    const chipsHtml = chipDefs.map(([val,lbl]) => {
-      const isOn = val==='none' ? opt.fee===0 : (opt.fee>0 && optCount===val);
-      const arg = typeof val==='string' ? `'${val}'` : val;
-      return `<button class="opt-chip${isOn?' on':''}" onclick="selectOptCount('${row.pid}','${row.tid}',${arg})">${lbl}</button>`;
+    const isCustomFee = opt.fee > 0 && ![500,700,1000].includes(opt.fee);
+
+    // 追加料金チップ: [なし][¥500][¥700][¥1,000][任意]
+    const feeDefs = [[0,'なし'],[500,'¥500'],[700,'¥700'],[1000,'¥1,000'],[-1,'任意']];
+    const feeChipsHtml = feeDefs.map(([val,lbl]) => {
+      const isOn = val===0 ? opt.fee===0 : (val===-1 ? isCustomFee : opt.fee===val);
+      return `<button class="opt-chip${isOn?' on':''}" onclick="selectOptFee('${row.pid}','${row.tid}',${val})" style="touch-action:manipulation">${lbl}</button>`;
     }).join('');
+    const customFeeHtml = isCustomFee
+      ? `<input type="number" inputmode="numeric" value="${opt.fee}"
+          style="width:76px;background:var(--s1);border:1.5px solid var(--goldd);border-radius:6px;padding:5px 8px;font-size:14px;font-weight:700;color:var(--gold);outline:none;-webkit-appearance:none"
+          oninput="updateOptFeeCustom('${row.pid}','${row.tid}',this.value)">`
+      : '';
+
+    // 適用個数チップ: fee>0のときのみ表示 [1個]...[全員/あり]
+    const countSection = opt.fee > 0 ? (() => {
+      const cDefs = qty === 1
+        ? [[1,'あり']]
+        : [...Array(qty)].map((_,c)=>([c+1, c+1===qty ? '全員' : `${c+1}個`]));
+      const countChipsHtml = cDefs.map(([val,lbl]) => {
+        const isOn = optCount === val;
+        return `<button class="opt-chip${isOn?' on':''}" onclick="selectOptCount('${row.pid}','${row.tid}',${val})" style="touch-action:manipulation">${lbl}</button>`;
+      }).join('');
+      return `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:7px;margin-bottom:8px">
+        <div style="font-size:12px;color:var(--dim);flex-shrink:0;width:60px">適用個数</div>
+        <div style="display:flex;flex-wrap:wrap;gap:5px">${countChipsHtml}</div>
+        <span style="font-size:11px;color:var(--orange);font-weight:700">2値化×2</span>
+      </div>`;
+    })() : '';
+
     return `
       <div style="${isLast?'':'border-bottom:1px solid var(--border);padding-bottom:10px;margin-bottom:10px'}">
         <div style="font-size:13px;font-weight:700;margin-bottom:8px;color:var(--gold)">${row.label}</div>
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
           <div style="font-size:12px;color:var(--dim);flex-shrink:0;width:60px">追加料金</div>
-          <div style="display:flex;align-items:center;gap:4px">
-            <span style="font-size:13px;color:var(--dim)">¥</span>
-            <input type="number" inputmode="numeric" value="${opt.fee||0}"
-              style="width:90px;background:var(--s1);border:1.5px solid var(--border);border-radius:6px;padding:6px 8px;font-size:15px;font-weight:700;color:var(--gold)"
-              oninput="updateOptionFee('${row.pid}','${row.tid}',this.value)">
+          <div style="display:flex;flex-wrap:wrap;gap:5px;align-items:center">
+            ${feeChipsHtml}${customFeeHtml}
           </div>
-          ${opt.fee>0?'<span style="font-size:11px;color:var(--orange);font-weight:700">2値化×2</span>':'<span style="font-size:10px;color:var(--dim)">料金入力で2値化2倍</span>'}
         </div>
-        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">
-          <div style="font-size:12px;color:var(--dim);flex-shrink:0;width:60px">適用個数</div>
-          <div style="display:flex;flex-wrap:wrap;gap:5px">${chipsHtml}</div>
-        </div>
+        ${countSection}
         <input type="text" inputmode="text" value="${opt.note||''}"
           placeholder="オプション内容（例：名入れ・背景除去）"
-          style="width:100%;background:var(--s1);border:1.5px solid var(--border);border-radius:6px;padding:8px 10px;font-size:13px;color:var(--text)"
+          style="width:100%;background:var(--s1);border:1.5px solid var(--border);border-radius:6px;padding:8px 10px;font-size:13px;color:var(--text);margin-top:${opt.fee>0?'0':'8px'}"
           oninput="updateOptionNote('${row.pid}','${row.tid}',this.value)">
       </div>`;
   }).join('');
 }
 
-function updateOptionFee(pid, tid, val) {
+function selectOptFee(pid, tid, val) {
   const key = pid + '__' + (tid||'');
-  if (!T.options[key]) {
-    const qty = tid ? ((T.selTypeQty[pid]||{})[tid]||1) : (T.selProds[pid]||1);
-    T.options[key] = { fee:0, note:'', count: qty };
+  const qty = tid ? ((T.selTypeQty[pid]||{})[tid]||1) : (T.selProds[pid]||1);
+  if (!T.options[key]) T.options[key] = { fee:0, note:'', count: qty };
+  if (val === 0) {
+    T.options[key].fee = 0;
+    T.options[key].count = qty;
+  } else if (val === -1) {
+    // 任意: feeを0のままにしてカスタム入力欄を表示させる（暫定で1にして欄を出す）
+    if (T.options[key].fee === 0 || [500,700,1000].includes(T.options[key].fee)) {
+      T.options[key].fee = 1; // 入力欄を出すためのダミー（すぐ上書きされる）
+    }
+    if (!T.options[key].count) T.options[key].count = qty;
+  } else {
+    T.options[key].fee = val;
+    if (!T.options[key].count || T.options[key].count === 0) T.options[key].count = qty;
   }
+  renderQtyBlock();
+}
+function updateOptFeeCustom(pid, tid, val) {
+  const key = pid + '__' + (tid||'');
+  const qty = tid ? ((T.selTypeQty[pid]||{})[tid]||1) : (T.selProds[pid]||1);
+  if (!T.options[key]) T.options[key] = { fee:0, note:'', count: qty };
   T.options[key].fee = parseInt(val)||0;
+  if (T.options[key].fee > 0 && !T.options[key].count) T.options[key].count = qty;
+  // 再レンダリングしない（フォーカスが外れる）
 }
 function updateOptionNote(pid, tid, val) {
   const key = pid + '__' + (tid||'');
@@ -1583,24 +1615,11 @@ function updateOptionNote(pid, tid, val) {
   }
   T.options[key].note = val;
 }
-function updateOptionCount(pid, tid, delta) {
-  const key = pid + '__' + (tid||'');
-  const qty = tid ? ((T.selTypeQty[pid]||{})[tid]||1) : (T.selProds[pid]||1);
-  if (!T.options[key]) T.options[key] = { fee:0, note:'', count: qty };
-  T.options[key].count = Math.max(0, Math.min(qty, (T.options[key].count??qty) + delta));
-  const el = document.getElementById('optcnt-'+key);
-  if (el) el.textContent = T.options[key].count;
-}
 function selectOptCount(pid, tid, val) {
   const key = pid + '__' + (tid||'');
   const qty = tid ? ((T.selTypeQty[pid]||{})[tid]||1) : (T.selProds[pid]||1);
   if (!T.options[key]) T.options[key] = { fee:0, note:'', count: qty };
-  if (val === 'none') {
-    T.options[key].fee = 0;
-    T.options[key].count = qty;
-  } else {
-    T.options[key].count = val;
-  }
+  T.options[key].count = val;
   renderQtyBlock();
 }
 function getOption(pid, tid) {
