@@ -149,6 +149,7 @@ body{background:var(--bg);color:var(--text);font-family:'Noto Sans JP',sans-seri
 .pb-cash{background:rgba(40,160,96,.1);color:var(--green)}
 .pb-airpay{background:rgba(40,120,200,.1);color:var(--blue)}
 .pb-paypay{background:rgba(200,40,40,.1);color:var(--red)}
+.pb-furikomi{background:rgba(120,80,200,.1);color:#9060d0}
 .hold-toggle{display:flex;align-items:center;gap:5px;margin-left:auto;font-size:11px;color:var(--dim);cursor:pointer;padding:3px 8px;border-radius:5px;border:1px solid var(--border);background:var(--s2);touch-action:manipulation}
 .hold-toggle.on{background:rgba(150,150,150,.15);color:var(--dim);border-color:var(--dim2)}
 .paid-toggle{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--dim);cursor:pointer;padding:3px 8px;border-radius:5px;border:1px solid var(--border);background:var(--s2);touch-action:manipulation}
@@ -255,7 +256,7 @@ body{background:var(--bg);color:var(--text);font-family:'Noto Sans JP',sans-seri
 .qbtn:last-child{border-radius:0 6px 6px 0}
 .qbtn:active{background:var(--s4)}
 .qval{width:36px;text-align:center;background:var(--s2);border-top:1px solid var(--border);border-bottom:1px solid var(--border);font-size:16px;font-weight:900;color:var(--text);font-family:'Zen Kaku Gothic New',sans-serif;height:32px;display:flex;align-items:center;justify-content:center}
-.pay-pick{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:11px}
+.pay-pick{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:11px}
 .pay-btn{background:var(--s2);border:1.5px solid var(--border);border-radius:7px;padding:9px 4px;text-align:center;cursor:pointer;touch-action:manipulation;font-size:12px;font-weight:700;color:var(--dim);transition:all .13s}
 .pay-btn:active{transform:scale(.95)}
 .pay-btn.on{background:rgba(184,134,11,.08);border-color:var(--goldd);color:var(--gold)}
@@ -501,6 +502,7 @@ body{background:var(--bg);color:var(--text);font-family:'Noto Sans JP',sans-seri
       <div class="pay-btn on" data-pay="cash">💴 現金</div>
       <div class="pay-btn" data-pay="airpay">💳 Airpay</div>
       <div class="pay-btn" data-pay="paypay">📱 PayPay</div>
+      <div class="pay-btn" data-pay="furikomi">🏦 振込</div>
     </div>
   </div>
   <div class="sh-lbl">備考・デザイン要望</div>
@@ -535,6 +537,7 @@ body{background:var(--bg);color:var(--text);font-family:'Noto Sans JP',sans-seri
     <div class="pay-btn" data-pay="cash">💴 現金</div>
     <div class="pay-btn" data-pay="airpay">💳 Airpay</div>
     <div class="pay-btn" data-pay="paypay">📱 PayPay</div>
+    <div class="pay-btn" data-pay="furikomi">🏦 振込</div>
   </div>
   <div class="sh-lbl">追加料金オプション</div>
   <div style="background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:11px">
@@ -720,7 +723,7 @@ const SHIP_STEPS = [
   { label:'撮影',    who:'美咲', color:'var(--ship5)' },
   { label:'発送',    who:'美咲', color:'var(--ship6)' },
 ];
-const PAY_LABELS  = { cash:'現金', airpay:'Airpay', paypay:'PayPay' };
+const PAY_LABELS  = { cash:'現金', airpay:'Airpay', paypay:'PayPay', furikomi:'振込' };
 const CH_LABELS   = { marche:'マルシェ', net:'ネット', sns:'SNS' };
 const CH_ICONS    = { marche:'🏕', net:'🌐', sns:'📱' };
 const CH_COLORS   = { marche:'var(--gold)', net:'var(--blue)', sns:'var(--pink)' };
@@ -1955,10 +1958,10 @@ function renderItemEditModal() {
           style="width:88px;background:var(--s1);border:1.5px solid var(--border);border-radius:6px;padding:7px 8px;font-size:15px;font-weight:700;color:var(--gold);outline:none;-webkit-appearance:none"
           oninput="T.itemGroups[${gi}].price=parseInt(this.value)||0">
         <div style="display:flex;gap:5px;flex-wrap:wrap;margin-left:4px">
-          ${['cash','airpay','paypay'].map(k=>`
+          ${[['cash','💴 現金'],['airpay','💳 Airpay'],['paypay','📱 PayPay'],['furikomi','🏦 振込']].map(([k,lbl])=>`
             <button class="pay-btn${g.payment===k?' on':''}" style="padding:7px 9px;font-size:11px;min-width:0"
               onclick="item2SetPay(${gi},'${k}')">
-              ${k==='cash'?'💴 現金':k==='airpay'?'💳 Airpay':'📱 PayPay'}
+              ${lbl}
             </button>`).join('')}
         </div>
       </div>
@@ -2568,7 +2571,7 @@ async function renderHistory() {
   document.getElementById('hs-cnt').textContent=historyData.length;
   document.getElementById('hs-sales').textContent=`¥${total.toLocaleString()}`;
   document.getElementById('hs-wait').textContent=avgWait;
-  const payMap={cash:0,airpay:0,paypay:0};
+  const payMap={cash:0,airpay:0,paypay:0,furikomi:0};
   historyData.forEach(h=>(h.salesItems||[]).forEach(si=>{const pm=si.paymentMethod||'cash';payMap[pm]=(payMap[pm]||0)+Number(si.price||0);}));
   document.getElementById('hist-pay-breakdown').innerHTML=Object.entries(PAY_LABELS).map(([k,l])=>{
     const pct=total?Math.round((payMap[k]||0)/total*100):0;
@@ -2594,7 +2597,7 @@ async function renderHistory() {
     const isShip=h.deliveryType==='shipping';
     // 支払い方法サマリ（複数の場合は「/」区切り）
     const paySet=[...new Set((h.salesItems||[]).map(si=>si.paymentMethod||'cash'))];
-    const PAY_ICON={cash:'💴',airpay:'💳',paypay:'📱'};
+    const PAY_ICON={cash:'💴',airpay:'💳',paypay:'📱',furikomi:'🏦'};
     const payLabel=paySet.map(p=>`${PAY_ICON[p]||''}${PAY_LABELS[p]||p}`).join(' / ');
     const card=document.createElement('div'); card.className='hcard'; card.style.flexDirection='column';
     card.innerHTML=`<div style="display:flex;align-items:flex-start;gap:9px;width:100%">
@@ -2635,7 +2638,7 @@ function toggleHistDetail(hid) {
     const base = si.productName||'-';
     const fullName = (si.typeName && !base.includes('['+si.typeName+']')) ? `${base} [${si.typeName}]` : base;
     const nameHtml=fullName.replace(/\[(.+?)\]/g,'<span style="color:var(--blue);font-weight:700"> [$1]</span>');
-    const payIcon={cash:'💴',airpay:'💳',paypay:'📱'}[si.paymentMethod||'cash']||'💴';
+    const payIcon={cash:'💴',airpay:'💳',paypay:'📱',furikomi:'🏦'}[si.paymentMethod||'cash']||'💴';
     return `
     <div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border)">
       <div style="flex:1;font-size:12px;font-weight:600">${nameHtml}</div>
@@ -2753,7 +2756,7 @@ function openEditHistory(hid) {
       <div class="pay-pick" style="margin-bottom:0">
         ${Object.entries(PAY_LABELS).map(([k,l])=>`
           <div class="pay-btn${(si.paymentMethod||'cash')===k?' on':''}" data-pay="${k}" data-idx="${i}" onclick="setHistPay(this,${i},'${k}')">
-            ${k==='cash'?'💴':k==='airpay'?'💳':'📱'} ${l}
+            ${{cash:'💴',airpay:'💳',paypay:'📱',furikomi:'🏦'}[k]||'💴'} ${l}
           </div>`).join('')}
       </div>
     </div>`;
@@ -2853,7 +2856,7 @@ async function renderAnalytics() {
       </div>
       <div class="bar-wrap"><div class="bar-fill" style="width:${Math.round((chMap[k]||0)/chMax*100)}%;background:${CH_COLORS[k]}"></div></div>
     </div>`).join('');
-  const payMap2={cash:0,airpay:0,paypay:0};
+  const payMap2={cash:0,airpay:0,paypay:0,furikomi:0};
   filtered.forEach(h=>(h.salesItems||[]).forEach(si=>{const p=si.paymentMethod||'cash';payMap2[p]=(payMap2[p]||0)+Number(si.price||0);}));
   document.getElementById('an-pay-breakdown').innerHTML=Object.entries(PAY_LABELS).map(([k,l])=>{
     const pct=periodTotal?Math.round((payMap2[k]||0)/periodTotal*100):0;
