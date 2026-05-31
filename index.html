@@ -1342,21 +1342,19 @@ function renderPPick() {
     let cardOos = false; // カード全体が在庫0か（移動できる場合はfalse）
     if (hasTypes) {
       const total=(p.types||[]).reduce((s,t)=>s+Number(isShipMode?t.stockShip:t.stockLoc||0),0);
-      const totalLoc=isShipMode?(p.types||[]).reduce((s,t)=>s+Number(t.stockLoc||0),0):0;
-      const hasTransferable=isShipMode&&total===0&&totalLoc>0;
       const label = isShipMode?'郵送在庫':'現地在庫';
-      cardOos = total===0 && !hasTransferable;
+      // 郵送モードで在庫0でも移動できる可能性があるのでグレーアウトしない
+      cardOos = total===0 && !isShipMode;
       if(total>0) stockTxt=`<div class="pp-stock ${total<=p.stockWarn?'low':'ok'}">${label} ${total}個</div>`;
-      else if(hasTransferable) stockTxt=`<div class="pp-stock" style="color:var(--gold);font-weight:700">📦 現地から移動可</div>`;
+      else if(isShipMode) stockTxt=`<div class="pp-stock" style="color:var(--gold);font-weight:700">📦 現地から移動可</div>`;
       else stockTxt=`<div class="pp-stock" style="color:var(--red);font-weight:700">⚠ 在庫なし</div>`;
     } else {
       const stock = isShipMode ? Number(p.stockShip||0) : Number(p.stockLoc||0);
-      const locStockVal = isShipMode ? Number(p.stockLoc||0) : 0;
       const label = isShipMode?'郵送在庫':'現地在庫';
-      const canTransferCard = isShipMode && stock===0 && locStockVal>0;
-      cardOos = stock===0 && !canTransferCard;
+      // 郵送モードで在庫0でも移動できる可能性があるのでグレーアウトしない
+      cardOos = stock===0 && !isShipMode;
       if(stock>0) stockTxt=`<div class="pp-stock ${stock<=p.stockWarn?'low':'ok'}">${label} ${stock}個</div>`;
-      else if(canTransferCard) stockTxt=`<div class="pp-stock" style="color:var(--gold);font-weight:700">📦 現地から移動可</div>`;
+      else if(isShipMode) stockTxt=`<div class="pp-stock" style="color:var(--gold);font-weight:700">📦 現地から移動可</div>`;
       else stockTxt=`<div class="pp-stock" style="color:var(--red);font-weight:700">⚠ 在庫なし</div>`;
     }
 
@@ -1372,11 +1370,12 @@ function renderPPick() {
         const qty = (T.selTypeQty[p.id]||{})[t.id] || 0;
         const tStock = isShipMode ? Number(t.stockShip||0) : Number(t.stockLoc||0);
         const tLocStock = isShipMode ? Number(t.stockLoc||0) : 0;
-        const tCanTransfer = isShipMode && tStock===0 && tLocStock>0;
-        const isOos = tStock===0 && !tCanTransfer;
+        const tCanTransfer = isShipMode && tStock===0; // 郵送モードで在庫0なら移動ボタンを出す
+        const isOos = tStock===0 && !isShipMode;
         const isLow = tStock>0 && tStock<=p.stockWarn;
         const statusColor = isLow?'var(--red)':isOos?'var(--dim)':tCanTransfer?'var(--gold)':'var(--green)';
-        const statusTxt = isOos?'在庫なし':tCanTransfer?`現地${tLocStock}個`:isLow?`⚠${tStock}個`:`${tStock}個`;
+        const locTxt = tLocStock>0?`現地${tLocStock}個`:'現地在庫要確認';
+        const statusTxt = isOos?'在庫なし':tCanTransfer?locTxt:isLow?`⚠${tStock}個`:`${tStock}個`;
         return `
           <div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid var(--border);opacity:${isOos?0.4:1}">
             <div style="flex:1;font-size:12px;font-weight:600;color:${isLow?'var(--red)':'var(--text)'}">${t.name} <span style="font-weight:400;color:${statusColor}">${statusTxt}</span></div>
@@ -1409,9 +1408,10 @@ function renderPPick() {
       b.style.cursor = cardOos ? 'not-allowed' : 'default';
       const stock = isShipMode ? Number(p.stockShip||0) : Number(p.stockLoc||0);
       const locStockVal2 = isShipMode ? Number(p.stockLoc||0) : 0;
-      const canTransferCard2 = isShipMode && stock===0 && locStockVal2>0;
+      const canTransferCard2 = isShipMode && stock===0; // 郵送モードで在庫0なら移動ボタンを出す
       const qty = T.selProds[p.id]||0;
       const atMax = qty >= stock; // 在庫上限に達している
+      const locHint = locStockVal2>0 ? `（現地${locStockVal2}個）` : '';
       b.innerHTML=`
         <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
           <div class="pp-name" style="flex:1">${p.name}</div>
@@ -1420,7 +1420,7 @@ function renderPPick() {
         </div>
         <div style="display:flex;align-items:center;justify-content:flex-end;margin-top:6px;gap:6px">
           ${canTransferCard2
-            ? `<button class="opt-chip" style="font-size:11px;padding:5px 12px;touch-action:manipulation" onclick="quickTransferStock('${p.id}','',1)">📦 現地→郵送 移動（現地${locStockVal2}個）</button>`
+            ? `<button class="opt-chip" style="font-size:11px;padding:5px 12px;touch-action:manipulation" onclick="quickTransferStock('${p.id}','',1)">📦 現地→郵送 移動${locHint}</button>`
             : `<button class="qbtn" style="width:28px;height:28px;font-size:14px" onclick="adjProdQty('${p.id}',-1)">－</button>
                <div class="qval" id="pq-${p.id}" style="width:34px;font-size:14px">${qty}</div>
                <button class="qbtn" style="width:28px;height:28px;font-size:14px" ${(cardOos||atMax)?'disabled':''} onclick="adjProdQty('${p.id}',1)">＋</button>`
@@ -3035,11 +3035,14 @@ async function doTransferStock() {
 async function quickTransferStock(pid, tid, amt) {
   const p = S.products.find(x=>x.id===pid);
   if (!p) return;
-  // Update local state
+  // 現地在庫チェック
   if (tid && (p.types||[]).length > 0) {
     const t = p.types.find(x=>x.id===tid);
-    if (t) { t.stockLoc = Math.max(0,(t.stockLoc||0)-amt); t.stockShip = (t.stockShip||0)+amt; }
+    if (!t || (t.stockLoc||0) <= 0) { toast('⚠️ 現地在庫がありません。商品マスターで在庫を確認してください'); return; }
+    t.stockLoc = Math.max(0,(t.stockLoc||0)-amt);
+    t.stockShip = (t.stockShip||0)+amt;
   } else {
+    if ((p.stockLoc||0) <= 0) { toast('⚠️ 現地在庫がありません。商品マスターで在庫を確認してください'); return; }
     p.stockLoc = Math.max(0,(p.stockLoc||0)-amt);
     p.stockShip = (p.stockShip||0)+amt;
   }
